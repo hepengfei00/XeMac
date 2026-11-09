@@ -1,0 +1,133 @@
+--- a/gpu/xkpi/include/xegfx_external_dp_policy.h
++++ b/gpu/xkpi/include/xegfx_external_dp_policy.h
+@@ -2,10 +2,17 @@
+ #ifndef XEGFX_EXTERNAL_DP_POLICY_H
+ #define XEGFX_EXTERNAL_DP_POLICY_H
+ 
+-/* Only the combo-PHY AUX registers already supported by ArrowWhatever. */
++/* Display v14: VBT F/G/H map to the USBC1/2/3 register banks, including legacy DP. */
+ static inline unsigned int xg_dp_aux_ctl(unsigned int aux)
+ {
+-	return aux == 0x40U ? 0x64010U : aux == 0x10U ? 0x64110U : 0;
++	switch (aux) {
++	case 0x40U: return 0x64010U;
++	case 0x10U: return 0x64110U;
++	case 0x60U: return 0x16f210U;
++	case 0x70U: return 0x16f410U;
++	case 0x80U: return 0x16f610U;
++	default: return 0;
++	}
+ }
+ 
+ static inline int xg_dp_vbt_candidate(unsigned int type, unsigned int aux,
+--- a/gpu/xkpi/src/i915/intel_bios.c
++++ b/gpu/xkpi/src/i915/intel_bios.c
+@@ -2414,6 +2414,12 @@
+ 					  dvo_port);
+ }
+ 
++int
++xg_display_dvo_port(struct intel_display *display, unsigned int dvo_port)
++{
++	return (int)dvo_port_to_port(display, (u8)dvo_port);
++}
++
+ static enum port
+ dsi_dvo_port_to_port(struct intel_display *display, u8 dvo_port)
+ {
+@@ -3213,7 +3219,7 @@
+ 			    xg_display_keep_dp_child(devdata->child.handle, devdata->child.dvo_port) :
+ 			    (devdata->child.device_type & DEVICE_TYPE_INTERNAL_CONNECTOR) != 0)
+ 				continue;
+-			snprintf(line, sizeof(line), "kms: VBT child handle 0x%04x left to the firmware (not internal)",
++			snprintf(line, sizeof(line), "kms: VBT child handle 0x%04x excluded by selected-output policy",
+ 			    (unsigned)devdata->child.handle);
+ 			xg_display_note(display, line);
+ 			list_del(&devdata->node);
+--- a/gpu/xkpi/src/i915/xg_display_hook.c
++++ b/gpu/xkpi/src/i915/xg_display_hook.c
+@@ -987,6 +987,7 @@
+  */
+ #include <linux/delay.h>
+ #include "intel_de.h"
++#include "i915_reg.h"
+ #include "intel_dp_aux_regs.h"
+ 
+ #define XG_AUX_PSR_CTL		0x60800		/* EDP_PSR_CTL(TRANSCODER_A), EDP_PSR_ENABLE = bit 31 */
+@@ -1208,8 +1209,17 @@
+ 		gXgAuxCtl = 0x64010;
+ 	else if (aux == 0x10)		/* DP_AUX_B */
+ 		gXgAuxCtl = 0x64110;
++	else if (xg_display_external_dp() && DISPLAY_VER(gXgAuxDisplay) == 14 &&
++	    (aux == 0x60 || aux == 0x70 || aux == 0x80)) {
++		enum aux_ch ch = aux == 0x60 ? AUX_CH_USBC1 : aux == 0x70 ? AUX_CH_USBC2 : AUX_CH_USBC3;
++		gXgAuxCtl = i915_mmio_reg_offset(XELPDP_DP_AUX_CH_CTL(gXgAuxDisplay, ch));
++		if (gXgAuxCtl != xg_dp_aux_ctl(aux)) {
++			snprintf(gXgAuxWhy, sizeof(gXgAuxWhy), "AUX mapping mismatch for VBT 0x%x", aux);
++			goto out;
++		}
++	}
+ 	else {
+-		snprintf(gXgAuxWhy, sizeof(gXgAuxWhy), "display aux 0x%x not a supported combo-PHY channel (child %s)",
++		snprintf(gXgAuxWhy, sizeof(gXgAuxWhy), "display aux 0x%x not a supported display-v14 AUX channel (child %s)",
+ 		    aux, c ? "found" : "missing");
+ 		goto out;
+ 	}
+@@ -1260,11 +1270,27 @@
+ 	return (gXgEdidLen ? 0 : -EIO);
+ }
+ 
++/* Probe only the SST port already driven by pipe A; other TC banks may be cold. */
++static int
++xg_aux_child_is_active(const unsigned char *c)
++{
++	u32 ctl, port;
++
++	if (gXgAuxDisplay == NULL || DISPLAY_VER(gXgAuxDisplay) != 14)
++		return 0;
++	ctl = intel_de_read(gXgAuxDisplay, TRANS_DDI_FUNC_CTL(gXgAuxDisplay, TRANSCODER_A));
++	if (!(ctl & TRANS_DDI_FUNC_ENABLE) ||
++	    (ctl & TRANS_DDI_MODE_SELECT_MASK) != TRANS_DDI_MODE_SELECT_DP_SST)
++		return 0;
++	port = (ctl & TGL_TRANS_DDI_PORT_MASK) >> TGL_TRANS_DDI_PORT_SHIFT;
++	return port > 0 && xg_display_dvo_port(gXgAuxDisplay, c[16]) == (int)port - 1;
++}
++
+ int
+ xg_display_aux_probe(void)
+ {
+ 	unsigned char edid[XG_DISPLAY_MAX_EDID], dpcd[XG_DISPLAY_DPCD_BYTES];
+-	unsigned int i, len = 0, matches = 0;
++	unsigned int i, len = 0, matches = 0, attempted = 0;
+ 	int selected = -1;
+ 
+ 	gXgDpChildIndex = -1;
+@@ -1278,6 +1304,9 @@
+ 		if (gXgChildSize < 34 || !xg_dp_vbt_candidate(xg_kms_vbt_u16(c, 2), c[25],
+ 		    c[33] & 1U, c[33] & 2U))
+ 			continue;
++		if (!xg_aux_child_is_active(c))
++			continue;
++		attempted++;
+ 		if (xg_display_aux_probe_child(c) != 0)
+ 			continue;
+ 		if (matches++ == 0) {
+@@ -1301,7 +1330,7 @@
+ 	gXgDpcdOk = 0;
+ 	if (!xg_display_external_dp())
+ 		return xg_display_aux_probe_child(NULL);
+-	snprintf(gXgAuxWhy, sizeof(gXgAuxWhy), "external DP: %u responding outputs; exactly one required", matches);
++	snprintf(gXgAuxWhy, sizeof(gXgAuxWhy), "external DP: %u responding outputs from %u AUX attempt(s); exactly one required", matches, attempted);
+ 	if (gXgAuxDisplay != NULL)
+ 		xg_disp_line(gXgAuxDisplay, gXgAuxWhy);
+ 	return -ENODEV;
+--- a/gpu/xkpi/src/i915/xg_display_hook.h
++++ b/gpu/xkpi/src/i915/xg_display_hook.h
+@@ -16,6 +16,7 @@
+ void xg_display_set_external_dp(int enabled);
+ int xg_display_external_dp(void);
+ int xg_display_keep_dp_child(unsigned int handle, unsigned int port);
++int xg_display_dvo_port(struct intel_display *display, unsigned int dvo_port);
+ void xg_display_dump_vbt(struct intel_display *display);
+ void xg_display_dump_bios(struct intel_display *display);
+ void xg_display_note(struct intel_display *display, const char *line);

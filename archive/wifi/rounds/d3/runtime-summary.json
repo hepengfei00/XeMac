@@ -1,0 +1,12 @@
+{
+  "version": "2.3.1d3",
+  "checks_passed": [
+    "scan",
+    "association",
+    "DHCP",
+    "interface-bound HTTPS",
+    "desktop graphics check"
+  ],
+  "remaining_issue": "Download throughput/retransmission",
+  "scope": "Saved test result; no user or session identifiers included"
+}

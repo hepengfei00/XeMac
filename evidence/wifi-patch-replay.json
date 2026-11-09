@@ -1,0 +1,27 @@
+{
+  "date": "2026-11-09",
+  "method": "Extract files touched by patches from saved upstream source archive; sequential git apply --check then apply in a disposable directory",
+  "results": [
+    {
+      "patch": "wifi/rounds/d1/0001-release-stage-diagnostics.patch",
+      "check_exit": 0,
+      "detail": ""
+    },
+    {
+      "patch": "wifi/rounds/d3/0001-native-irq-and-completion-lock.patch",
+      "check_exit": 0,
+      "detail": ""
+    },
+    {
+      "patch": "wifi/rounds/d4/0001-native-rx-ownership-serialization-batching.patch",
+      "check_exit": 0,
+      "detail": ""
+    },
+    {
+      "patch": "wifi/candidates/ba-d5/0001-passive-ba-negotiation-diagnostics.patch",
+      "check_exit": 0,
+      "detail": ""
+    }
+  ],
+  "hardware_execution": false
+}

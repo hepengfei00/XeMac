@@ -1,0 +1,26 @@
+{
+  "date": "2026-11-09",
+  "method": "Saved original Realtek/BlueToolFixup sources in disposable directory; sequential check and apply",
+  "initial_check_correction": "First trial used the wrong apply directory. HCI patch uses repository root; scan patch uses BrcmPatchRAM subdirectory. Documentation corrected to match final successful replay.",
+  "results": [
+    {
+      "patch": "archive/bluetooth/native-fw1/identity-fix/0001-preserve-rtl8922a-usb-name.patch",
+      "apply_root": "repository root",
+      "check_exit": 0,
+      "detail": ""
+    },
+    {
+      "patch": "archive/bluetooth/native-fw1/hci-compat/0001-rtl8922a-25g332-emp2-only.patch",
+      "apply_root": "repository root",
+      "check_exit": 0,
+      "detail": ""
+    },
+    {
+      "patch": "archive/bluetooth/native-fw1/scan-compat/0002-rtl8922a-scan718-final.patch",
+      "apply_root": "BrcmPatchRAM",
+      "check_exit": 0,
+      "detail": ""
+    }
+  ],
+  "hardware_execution": false
+}

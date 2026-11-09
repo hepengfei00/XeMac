@@ -1,0 +1,348 @@
+{
+  "method": "git apply --numstat for nonempty patches; empty comparison explicitly classified",
+  "valid_nonempty": 56,
+  "empty_comparisons": 1,
+  "results": [
+    {
+      "path": "archive/bluetooth/native-fw1/hci-compat/0001-rtl8922a-25g332-emp2-only.patch",
+      "kind": "unified patch",
+      "exit": 0,
+      "detail": ""
+    },
+    {
+      "path": "archive/bluetooth/native-fw1/identity-fix/0001-preserve-rtl8922a-usb-name.patch",
+      "kind": "unified patch",
+      "exit": 0,
+      "detail": ""
+    },
+    {
+      "path": "archive/bluetooth/native-fw1/scan-compat/0002-rtl8922a-scan718-final.patch",
+      "kind": "unified patch",
+      "exit": 0,
+      "detail": ""
+    },
+    {
+      "path": "archive/bluetooth/native-fw1/usb-client-check/official-bluetool-diff.patch",
+      "kind": "empty comparison proving no source difference",
+      "exit": 0
+    },
+    {
+      "path": "archive/graphics/patches/0038-265k-external-dp-candidate.patch",
+      "kind": "unified patch",
+      "exit": 0,
+      "detail": ""
+    },
+    {
+      "path": "archive/graphics/patches/0039-cross-host-kpi-source.patch",
+      "kind": "unified patch",
+      "exit": 0,
+      "detail": ""
+    },
+    {
+      "path": "archive/graphics/patches/0040-single-boot-trial-guard.patch",
+      "kind": "unified patch",
+      "exit": 0,
+      "detail": ""
+    },
+    {
+      "path": "archive/graphics/patches/0041-z890m-legacy-dp-aux-h.patch",
+      "kind": "unified patch",
+      "exit": 0,
+      "detail": ""
+    },
+    {
+      "path": "archive/graphics/patches/0042-xemtl-windowserver-fbfetch-switch.patch",
+      "kind": "unified patch",
+      "exit": 0,
+      "detail": ""
+    },
+    {
+      "path": "archive/graphics/patches/0043-core-accept-consumed-early-claim-token.patch",
+      "kind": "unified patch",
+      "exit": 0,
+      "detail": ""
+    },
+    {
+      "path": "archive/graphics/patches/0044-xemtl-track-buffer-memory-types.patch",
+      "kind": "unified patch",
+      "exit": 0,
+      "detail": ""
+    },
+    {
+      "path": "archive/graphics/patches/0045-display-publish-current-kapi-timing-for-agdc.patch",
+      "kind": "unified patch",
+      "exit": 0,
+      "detail": ""
+    },
+    {
+      "path": "archive/graphics/patches/0046-early-claim-record-boot-gates.patch",
+      "kind": "unified patch",
+      "exit": 0,
+      "detail": ""
+    },
+    {
+      "path": "archive/graphics/patches/freebsd-mach-o-read-frequently.patch",
+      "kind": "unified patch",
+      "exit": 0,
+      "detail": ""
+    },
+    {
+      "path": "archive/graphics/reference/patches/0001-xg_vm-userptr-race.patch",
+      "kind": "unified patch",
+      "exit": 0,
+      "detail": ""
+    },
+    {
+      "path": "archive/graphics/reference/patches/0002-accel-vblank-and-head4.patch",
+      "kind": "unified patch",
+      "exit": 0,
+      "detail": ""
+    },
+    {
+      "path": "archive/graphics/reference/patches/0003-intelfb-panel-timing.patch",
+      "kind": "unified patch",
+      "exit": 0,
+      "detail": ""
+    },
+    {
+      "path": "archive/graphics/reference/patches/0004-agdc-k5-panel-timing.patch",
+      "kind": "unified patch",
+      "exit": 0,
+      "detail": ""
+    },
+    {
+      "path": "archive/graphics/reference/patches/0005-plugin-xemtl-port.patch",
+      "kind": "unified patch",
+      "exit": 0,
+      "detail": ""
+    },
+    {
+      "path": "archive/graphics/reference/patches/0006-plugin-host-import.patch",
+      "kind": "unified patch",
+      "exit": 0,
+      "detail": ""
+    },
+    {
+      "path": "archive/graphics/reference/patches/0007-plugin-first-loss-journal.patch",
+      "kind": "unified patch",
+      "exit": 0,
+      "detail": ""
+    },
+    {
+      "path": "archive/graphics/reference/patches/0008-core-ggtt-flip-slots.patch",
+      "kind": "unified patch",
+      "exit": 0,
+      "detail": ""
+    },
+    {
+      "path": "archive/graphics/reference/patches/0009-accel-zero-copy-flip.patch",
+      "kind": "unified patch",
+      "exit": 0,
+      "detail": ""
+    },
+    {
+      "path": "archive/graphics/reference/patches/0010-intelfb-detailed-timings.patch",
+      "kind": "unified patch",
+      "exit": 0,
+      "detail": ""
+    },
+    {
+      "path": "archive/graphics/reference/patches/0011-core-native-display-m0-m4a.patch",
+      "kind": "unified patch",
+      "exit": 0,
+      "detail": ""
+    },
+    {
+      "path": "archive/graphics/reference/patches/0012-accel-m3d-m4a-present-bootarm.patch",
+      "kind": "unified patch",
+      "exit": 0,
+      "detail": ""
+    },
+    {
+      "path": "archive/graphics/reference/patches/0013-agdc-m3d-in-kernel-arm.patch",
+      "kind": "unified patch",
+      "exit": 0,
+      "detail": ""
+    },
+    {
+      "path": "archive/graphics/reference/patches/0014-intelfb-l0-ready.patch",
+      "kind": "unified patch",
+      "exit": 0,
+      "detail": ""
+    },
+    {
+      "path": "archive/graphics/reference/patches/0015-adapter-xegfxdisplay-kms.patch",
+      "kind": "unified patch",
+      "exit": 0,
+      "detail": ""
+    },
+    {
+      "path": "archive/graphics/reference/patches/0016-tools-native-display-bringup.patch",
+      "kind": "unified patch",
+      "exit": 0,
+      "detail": ""
+    },
+    {
+      "path": "archive/graphics/reference/patches/0017-agdc-pending-retry.patch",
+      "kind": "unified patch",
+      "exit": 0,
+      "detail": ""
+    },
+    {
+      "path": "archive/graphics/reference/patches/0018-adapter-intel-class-name.patch",
+      "kind": "unified patch",
+      "exit": 0,
+      "detail": ""
+    },
+    {
+      "path": "archive/graphics/reference/patches/0019-guard-tools-class-name-and-keep-armed.patch",
+      "kind": "unified patch",
+      "exit": 0,
+      "detail": ""
+    },
+    {
+      "path": "archive/graphics/reference/patches/0020-core-aux-edid-dpcd.patch",
+      "kind": "unified patch",
+      "exit": 0,
+      "detail": ""
+    },
+    {
+      "path": "archive/graphics/reference/patches/0021-adapter-edid-ddc.patch",
+      "kind": "unified patch",
+      "exit": 0,
+      "detail": ""
+    },
+    {
+      "path": "archive/graphics/reference/patches/0022-core-k1-staged-edp-takeover.patch",
+      "kind": "unified patch",
+      "exit": 0,
+      "detail": ""
+    },
+    {
+      "path": "archive/graphics/reference/patches/0023-core-kms-boot-commit-joiner-cursor.patch",
+      "kind": "unified patch",
+      "exit": 0,
+      "detail": ""
+    },
+    {
+      "path": "archive/graphics/reference/patches/0024-accel-deferred-flip-tile4-pageoff.patch",
+      "kind": "unified patch",
+      "exit": 0,
+      "detail": ""
+    },
+    {
+      "path": "archive/graphics/reference/patches/0025-adapter-kms-modes-cursor-bootmode.patch",
+      "kind": "unified patch",
+      "exit": 0,
+      "detail": ""
+    },
+    {
+      "path": "archive/graphics/reference/patches/0026-plugin-marks-tile4-pageoff.patch",
+      "kind": "unified patch",
+      "exit": 0,
+      "detail": ""
+    },
+    {
+      "path": "archive/graphics/reference/patches/0027-tools-frame-rate-and-pageoff-measurement.patch",
+      "kind": "unified patch",
+      "exit": 0,
+      "detail": ""
+    },
+    {
+      "path": "archive/graphics/reference/patches/0028-core-ccs-scanout-surface-import-mmap.patch",
+      "kind": "unified patch",
+      "exit": 0,
+      "detail": ""
+    },
+    {
+      "path": "archive/graphics/reference/patches/0029-accel-ccs-scanout-surface-ticket.patch",
+      "kind": "unified patch",
+      "exit": 0,
+      "detail": ""
+    },
+    {
+      "path": "archive/graphics/reference/patches/0030-agdc-colour-stages-bgra-plane.patch",
+      "kind": "unified patch",
+      "exit": 0,
+      "detail": ""
+    },
+    {
+      "path": "archive/graphics/reference/patches/0031-plugin-ccs-scanout-surface-import-arena.patch",
+      "kind": "unified patch",
+      "exit": 0,
+      "detail": ""
+    },
+    {
+      "path": "archive/graphics/reference/patches/0032-libdrm-stale-export-and-trace.patch",
+      "kind": "unified patch",
+      "exit": 0,
+      "detail": ""
+    },
+    {
+      "path": "archive/graphics/reference/patches/0033-mesa-anv-xemtl-residency-pointer-push.patch",
+      "kind": "unified patch",
+      "exit": 0,
+      "detail": ""
+    },
+    {
+      "path": "archive/graphics/reference/patches/0034-tools-genie-fps-timeline-anv-harness.patch",
+      "kind": "unified patch",
+      "exit": 0,
+      "detail": ""
+    },
+    {
+      "path": "archive/graphics/reference/patches/0035-core-pipe-colour-gt-floor.patch",
+      "kind": "unified patch",
+      "exit": 0,
+      "detail": ""
+    },
+    {
+      "path": "archive/graphics/reference/patches/0036-accel-colour-gt-floor-numbered-marks.patch",
+      "kind": "unified patch",
+      "exit": 0,
+      "detail": ""
+    },
+    {
+      "path": "archive/graphics/reference/patches/0037-plugin-numbered-marks.patch",
+      "kind": "unified patch",
+      "exit": 0,
+      "detail": ""
+    },
+    {
+      "path": "archive/wifi/candidates/ba-d5/0001-passive-ba-negotiation-diagnostics.patch",
+      "kind": "unified patch",
+      "exit": 0,
+      "detail": ""
+    },
+    {
+      "path": "archive/wifi/restore-d3/0001-wait-for-valid-framebuffer-timing-before-userland-switch.patch",
+      "kind": "unified patch",
+      "exit": 0,
+      "detail": ""
+    },
+    {
+      "path": "archive/wifi/rounds/backend-d2/0001-manual-backend-isolation.patch",
+      "kind": "unified patch",
+      "exit": 0,
+      "detail": ""
+    },
+    {
+      "path": "archive/wifi/rounds/d1/0001-release-stage-diagnostics.patch",
+      "kind": "unified patch",
+      "exit": 0,
+      "detail": ""
+    },
+    {
+      "path": "archive/wifi/rounds/d3/0001-native-irq-and-completion-lock.patch",
+      "kind": "unified patch",
+      "exit": 0,
+      "detail": ""
+    },
+    {
+      "path": "archive/wifi/rounds/d4/0001-native-rx-ownership-serialization-batching.patch",
+      "kind": "unified patch",
+      "exit": 0,
+      "detail": ""
+    }
+  ]
+}

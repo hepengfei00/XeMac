@@ -1,0 +1,12 @@
+--- a/plugin/nvmtl_vk.c
++++ b/plugin/nvmtl_vk.c
+@@ -3743,7 +3743,8 @@
+     if (on < 0) {
+         const char *off = getenv("XEMTL_NO_FBFETCH"), *ws = getenv("XEMTL_FBFETCH_WS");
+         const int is_ws = getprogname() && !strcmp(getprogname(), "WindowServer");
+-        on = !(off && off[0] == '1') && (!is_ws || (ws && ws[0] == '1'));
++        on = !(off && off[0] == '1') && (!is_ws || (ws && ws[0] == '1') ||
++              access("/Library/GPUBundles/.xemtl-fbfetch-ws", F_OK) == 0);
+         nvlog("vk: framebuffer fetch %s", on ? "ON - render passes declare their colour attachments as input attachments"
+                                            : is_ws ? "off in WindowServer (NVMTL_FBFETCH_WS=1 opts in)" : "OFF (NVMTL_NO_FBFETCH=1)");
+     }

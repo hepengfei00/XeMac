@@ -1,0 +1,45 @@
+--- a/BlueToolFixup.cpp
++++ b/BlueToolFixup.cpp
+@@ -37,7 +37,7 @@
+         return false;
+     }
+     setProperty("VersionInfo", kextVersion);
+-    setProperty("WTLRtl8922Trial", "25G332-emp2-only-d1");
++    setProperty("WTLRtl8922Trial", "25G332-emp2-scan-d2");
+     registerService();
+     
+     return true;
+@@ -213,8 +213,13 @@
+ 
+ // Local 0BDA:8922 trial, 25G332 x86_64 only. Derived from upstream issue #6.
+ // Current hardware advertises Supported Commands[22] == 0 and local EMP2 reject 628.
+-// Do not enable for another controller/build, or for unobserved LE scan errors.
++// Scan reset/stop error718 independently reproduced after EMP2 init passed.
+ static bool shouldPatchRtl8922Emp2;
++static bool shouldPatchRtl8922Scan;
++static const uint8_t kRtl8922ScanResetOriginal[] = { 0xe9,0xb6,0xfe,0xff,0xff,0x85,0xff,0x74,0x0a,0xbe,0x03,0x00 };
++static const uint8_t kRtl8922ScanResetPatched[] = { 0xe9,0xb6,0xfe,0xff,0xff,0x31,0xff,0x74,0x0a,0xbe,0x03,0x00 };
++static const uint8_t kRtl8922ScanStopOriginal[] = { 0x41,0x89,0xf6,0x49,0x89,0xfc,0x85,0xf6,0x0f,0x84,0xd5,0x00,0x00,0x00 };
++static const uint8_t kRtl8922ScanStopPatched[] = { 0x41,0x89,0xf6,0x49,0x89,0xfc,0x31,0xf6,0x0f,0x84,0xd5,0x00,0x00,0x00 };
+ static const uint8_t kRtl8922Emp2Original[] = { 0x48,0x8b,0x3d,0x59,0x6a,0x9b,0x00,0x89,0xde,0xe8 };
+ static const uint8_t kRtl8922Emp2Patched[] = { 0x31,0xff,0xe8,0x62,0x19,0x00,0x00,0xeb,0x05,0xe8 };
+ 
+@@ -235,6 +240,10 @@
+             searchAndPatch(data, PAGE_SIZE, path, kVendorCheckOriginal, kVendorCheckPatched);
+             if (shouldPatchRtl8922Emp2)
+                 searchAndPatch(data, PAGE_SIZE, path, kRtl8922Emp2Original, kRtl8922Emp2Patched);
++            if (shouldPatchRtl8922Scan) {
++                searchAndPatch(data, PAGE_SIZE, path, kRtl8922ScanResetOriginal, kRtl8922ScanResetPatched);
++                searchAndPatch(data, PAGE_SIZE, path, kRtl8922ScanStopOriginal, kRtl8922ScanStopPatched);
++            }
+             searchAndPatch(data, PAGE_SIZE, path, kBadChipsetCheckOriginal, kBadChipsetCheckPatched);
+             if (getKernelVersion() >= KernelVersion::Ventura && getKernelVersion() < KernelVersion::Sequoia)
+                 searchAndPatch(data, PAGE_SIZE, path, kBadChipsetCheckOriginal13_3, kBadChipsetCheckPatched13_3);
+@@ -260,6 +269,7 @@
+         return;
+     lilu.onPatcherLoadForce([](void *user, KernelPatcher &patcher) {
+         shouldPatchRtl8922Emp2 = getKernelVersion() == KernelVersion::Tahoe && getKernelMinorVersion() == 6 && checkKernelArgument("-btlfxrtl8922emp2");
++        shouldPatchRtl8922Scan = shouldPatchRtl8922Emp2 && checkKernelArgument("-btlfxrtl8922scan");
+         if (getKernelVersion() >= KernelVersion::Sonoma) {
+             shouldPatchBoardId = checkKernelArgument("-btlfxboardid");
+         } else {

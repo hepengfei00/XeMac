@@ -1,0 +1,46 @@
+--- a/RealtekBluetoothFirmware/RealtekBluetoothFirmware.cpp
++++ b/RealtekBluetoothFirmware/RealtekBluetoothFirmware.cpp
+@@ -114,8 +114,19 @@
+     m_pDevice->setProperty("FirmwareLoaded", isSucceed);
+     if (isSucceed)
+         setProperty("fw_name", OSString::withCString(fwName));
+-    if (version_major >= 21)
+-        m_pDevice->setName("Bluetooth USB Host Controller");
++    if (version_major >= 21) {
++        // Keep the real USB identity for this controller. Renaming it to
++        // Apple's internal-controller name makes bluetoothd select the wrong
++        // transport and fail to retrieve its Realtek vendor/product IDs.
++        const auto *descriptor = m_pDevice->getDeviceDescriptor();
++        const bool keepRealtekName = descriptor &&
++            USBToHost16(descriptor->idVendor) == 0x0bda &&
++            USBToHost16(descriptor->idProduct) == 0x8922;
++        if (!keepRealtekName)
++            m_pDevice->setName("Bluetooth USB Host Controller");
++        else
++            XYLog("preserving Realtek 0bda:8922 USB device name\n");
++    }
+ }
+ 
+ void RealtekBluetoothFirmware::cleanUp()
+--- a/RealtekBluetoothFirmware/Info.plist
++++ b/RealtekBluetoothFirmware/Info.plist
+@@ -17,7 +17,7 @@
+ 	<key>CFBundleShortVersionString</key>
+ 	<string>1.0.2</string>
+ 	<key>CFBundleVersion</key>
+-	<string>1.0.2</string>
++	<string>1.0.2d1</string>
+ 	<key>OSBundleRequired</key>
+ 	<string>Local-Root</string>
+ 	<key>IOKitPersonalities</key>
+--- a/RealtekBluetoothFirmware/kmod_info.c
++++ b/RealtekBluetoothFirmware/kmod_info.c
+@@ -11,7 +11,7 @@
+ extern kern_return_t _start(kmod_info_t *ki, void *data);
+ extern kern_return_t _stop(kmod_info_t *ki, void *data);
+ 
+-KMOD_EXPLICIT_DECL(org.thegwchr.RealtekBluetoothFirmware, "1.0.2", _start, _stop)
++KMOD_EXPLICIT_DECL(org.thegwchr.RealtekBluetoothFirmware, "1.0.2d1", _start, _stop)
+ 
+ __private_extern__ kmod_start_func_t *_realmain = 0;
+ __private_extern__ kmod_stop_func_t *_antimain = 0;

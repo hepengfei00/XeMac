@@ -1,0 +1,5 @@
+{
+  "version": "2.3.1d1",
+  "finding": "HAL enable and native POWER path waited for firmware replies; phase diagnostics used for localization",
+  "result": "Diagnostics only; no throughput fix established"
+}

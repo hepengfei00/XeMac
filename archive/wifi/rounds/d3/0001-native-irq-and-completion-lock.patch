@@ -1,0 +1,115 @@
+--- a/rtw/hal_rtw89/compat/linux/completion.h
++++ b/rtw/hal_rtw89/compat/linux/completion.h
+@@ -62,8 +62,12 @@
+     unsigned long deadline = jiffies + timeout_j;
+     IOLockLock(c->lock);
+     while (!c->done) {
++        if (time_after_eq(jiffies, deadline)) {
++            /* Every return must release the non-recursive completion lock. */
++            IOLockUnlock(c->lock);
++            return 0;
++        }
+         IOLockUnlock(c->lock);
+-        if (time_after_eq(jiffies, deadline)) { IOLockLock(c->lock); return 0; }
+         IOSleep(1);
+         IOLockLock(c->lock);
+     }
+--- a/rtw/hal_rtw89/Rtw89PciTransport.cpp
++++ b/rtw/hal_rtw89/Rtw89PciTransport.cpp
+@@ -61,8 +61,17 @@
+ 
+     pciDevice = device;
+     pciDevice->retain();
++#ifdef AIRPORT_WCL
++    // POWER requests run under the native queue's gate. Firmware startup waits
++    // for IRQ/C2H replies, so IRQ delivery must not depend on that same gate.
++    workLoop = IOWorkLoop::workLoop();
++    if (!workLoop)
++        return false;
++    pciDevice->setProperty("RTWInterruptQueue", "dedicated-native");
++#else
+     workLoop = loop;
+     workLoop->retain();
++#endif
+ 
+     recordAttachStage("DMA locks");
+     dmaLock = IOSimpleLockAlloc();
+--- a/rtw/hal_rtw89/Rtw89PciTransport.hpp
++++ b/rtw/hal_rtw89/Rtw89PciTransport.hpp
+@@ -37,6 +37,12 @@
+     // Store attach diagnostics on the PCI device, which survives failed attach.
+     void recordAttachStage(const char *stage) {
+         pciDevice->setProperty("RTWTransportStage", stage);
++    }
++    static void recordPowerStage(const char *stage) {
++        if (!active || !active->pciDevice) return;
++        active->pciDevice->setProperty("RTWPowerStage", stage);
++        active->pciDevice->setProperty("RTWPowerInterruptCount",
++            __atomic_load_n(&active->interruptCount, __ATOMIC_RELAXED), 64);
+     }
+     static void recordPCIProbeStage(const char *stage, int result) {
+         if (!active || !active->pciDevice) return;
+--- a/rtw/hal_rtw89/Rtw89LinuxBridge.cpp
++++ b/rtw/hal_rtw89/Rtw89LinuxBridge.cpp
+@@ -504,11 +504,14 @@
+         return false;
+     if (!context->started) {
+         RTW_LOG("AirportRTW-RTW89: hardware start callback begin\n");
++        Rtw89PciTransport::recordPowerStage("start-wiphy-lock");
+         WiphyGuard guard(hw);
++        Rtw89PciTransport::recordPowerStage("hardware-start-enter");
+         if (!hw->ops->start || hw->ops->start(hw) != 0) {
+             RTW_LOG("AirportRTW-RTW89: hardware start callback failed\n");
+             return false;
+         }
++        Rtw89PciTransport::recordPowerStage("hardware-start-return");
+         context->started = true;
+         RTW_LOG("AirportRTW-RTW89: hardware start callback complete\n");
+     }
+@@ -516,7 +519,9 @@
+         RTW_LOG("AirportRTW-RTW89: add-interface callback begin\n");
+         int result;
+         {
++            Rtw89PciTransport::recordPowerStage("interface-wiphy-lock");
+             WiphyGuard guard(hw);
++            Rtw89PciTransport::recordPowerStage("add-interface-enter");
+             result = hw->ops->add_interface ? hw->ops->add_interface(hw, vif)
+                                             : -EOPNOTSUPP;
+         }
+@@ -530,10 +535,12 @@
+             context->started = false;
+             return false;
+         }
++        Rtw89PciTransport::recordPowerStage("add-interface-return");
+         rtw88_register_vif(vif);
+         context->interfaceAdded = true;
+         RTW_LOG("AirportRTW-RTW89: add-interface callback complete\n");
+     }
++    Rtw89PciTransport::recordPowerStage("power-up-complete");
+     return true;
+ }
+ 
+--- a/rtw/hal_rtw89/RTWCore89.cpp
++++ b/rtw/hal_rtw89/RTWCore89.cpp
+@@ -235,8 +235,10 @@
+ #ifdef AIRPORT_WCL
+     if (!rtw89LinuxSetMacAddress(&linuxContext, sc.sc_ic.ic_myaddr))
+         return kIOReturnBadArgument;
++    Rtw89PciTransport::recordPowerStage("reset-event-enter");
+     if (sc.sc_ic.ic_event_handler)
+         sc.sc_ic.ic_event_handler(&sc.sc_ic, IEEE80211_EVT_DRIVER_RESET_BEGIN, nullptr);
++    Rtw89PciTransport::recordPowerStage("reset-event-return");
+ #endif
+     if (!rtw89LinuxPowerUp(&linuxContext)) {
+ #ifdef AIRPORT_WCL
+@@ -263,8 +265,10 @@
+     sc.sc_ic.ic_flags &= ~IEEE80211_F_AUTO_JOIN;
+     if (sc.sc_ic.ic_hecaps)
+         sc.sc_ic.ic_flags |= IEEE80211_F_HEON;
++    Rtw89PciTransport::recordPowerStage("ready-event-enter");
+     if (sc.sc_ic.ic_event_handler)
+         sc.sc_ic.ic_event_handler(&sc.sc_ic, IEEE80211_EVT_DRIVER_READY, nullptr);
++    Rtw89PciTransport::recordPowerStage("ready-event-return");
+ #else
+     ieee80211_begin_scan(&sc.sc_ic.ic_if);
+ #endif

@@ -1,0 +1,17 @@
+XeGfx
+Copyright (c) 2026, watchthelight
+
+The project's own code is under the BSD 2-Clause license in LICENSE.
+
+XeGfx builds against third-party sources that are not included in this
+repository: FreeBSD's drm-kmod, FreeBSD's LinuxKPI, the Linux DRM and i915
+drivers, and FreeBSD kernel headers. They are fetched separately and keep
+their own licenses (drm core and i915 are mostly MIT, LinuxKPI and the
+FreeBSD kernel are BSD).
+
+shim/gen holds headers generated from FreeBSD interface (*_if.m) files with
+FreeBSD's makeobjops.awk. They carry FreeBSD's BSD license.
+
+Headers in shim/include that override FreeBSD or LinuxKPI headers are
+written for XNU but may follow the shape of the files they replace; where
+they copy FreeBSD code, that code keeps its BSD license and copyright.

@@ -1,0 +1,10 @@
+{
+  "version": "2.3.1d4",
+  "queue_frames": 512,
+  "queue_payload_limit_bytes": 4194304,
+  "frames_per_action": 64,
+  "interface_flush": "once per nonempty batch",
+  "protocol_state": "native workloop gate",
+  "result": "Receive path active and data transfer tested; download retransmission remains",
+  "daily_version": false
+}

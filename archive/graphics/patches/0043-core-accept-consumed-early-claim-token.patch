@@ -1,0 +1,17 @@
+--- a/gpu/xegfx/shim/src/xnu/xg_kext.cpp
++++ b/gpu/xegfx/shim/src/xnu/xg_kext.cpp
+@@ -2066,10 +2066,12 @@
+ 	}
+ 	OSData *d = OSDynamicCast(OSData, value);
+ 	uint32_t armed = 0;
+-	if (d != nullptr && d->getLength() == sizeof(armed))
++	bool validOnce = d != nullptr && d->getLength() == sizeof(armed);
++	if (validOnce)
+ 		memcpy(&armed, d->getBytesNoCopy(), sizeof(armed));
+ 	value->release();
+-	bool ok = false;
++	bool ok = validOnce && armed == 0 &&
++	    xg_resource_flag("WTLArrowEarlyClaimActive") && xg_resource_flag("WTLArrowTrialActive");
+ 	if (armed == 1) {
+ 		uint32_t zero = 0;
+ 		OSData *off = OSData::withBytes(&zero, sizeof(zero));

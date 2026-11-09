@@ -1,0 +1,21 @@
+{
+  "purpose": "Document selected known settings. This fragment is a reference, not a complete OpenCore configuration.",
+  "target": {
+    "os": "26.7.2",
+    "build": "25G332",
+    "opencore": "1.0.6",
+    "cpu": "265K",
+    "gpu": "8086:7D67"
+  },
+  "observed_settings": {
+    "Misc.Security.SecureBootModel": "Disabled",
+    "PlatformInfo.Generic.SystemProductName": "MacPro7,1"
+  },
+  "qualified_bluetooth_arguments": [
+    "-btlfxboardid",
+    "-btlfxrtl8922emp2",
+    "-btlfxrtl8922scan"
+  ],
+  "identity": "Generate your own serial/MLB/UUID/ROM. No identity values are provided.",
+  "usb": "USBToolBox + UTBDefault were used. Machine-specific port mapping remains unvalidated."
+}

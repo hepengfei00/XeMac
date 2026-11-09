@@ -1,0 +1,76 @@
+--- a/plugin/nvmtl_vk.c
++++ b/plugin/nvmtl_vk.c
+@@ -1369,7 +1369,7 @@
+         static unsigned n; if (n++ < 4) nvlog("residency (res3): a %zu-byte stable-address buffer was refused (alloc %d) - the old path", size, ar);
+         return -1;
+     }
+-    out->buf = b; out->mem = m; out->size = size; out->alloc = mr.size; out->sparse = 1; out->sysmem = sys;
++    out->buf = b; out->mem = m; out->size = size; out->alloc = mr.size; out->sparse = 1; out->sysmem = sys; out->mtype1 = (int)mai.memoryTypeIndex + 1;
+     g_alloc_bytes += mr.size; g_buf_made++; g_res3_made++;
+     if (!sys) nvmtl_vk_budget_charge(mr.size);
+     else { g_res3_madesys++; g_buf_vram_refused++;
+@@ -1426,7 +1426,7 @@
+         VkResult r2 = r1 == VK_SUCCESS ? pvkMapMemory(g_dev, bm, 0, VK_WHOLE_SIZE, 0, &bp) : r1;
+         VkResult r3 = r2 == VK_SUCCESS ? pvkBindBufferMemory(g_dev, out->buf, bm, 0) : r2;
+         if (r3 == VK_SUCCESS) {
+-            out->mem = bm; out->map = bp; out->alloc = mr.size; out->bar1 = 1; g_alloc_bytes += mr.size; g_bar1_bytes += mr.size; g_buf_made++;
++            out->mem = bm; out->map = bp; out->alloc = mr.size; out->bar1 = 1; out->mtype1 = bt + 1; g_alloc_bytes += mr.size; g_bar1_bytes += mr.size; g_buf_made++;
+             { static int said; if (!said++) nvlog("vk: shared buffer of %zu bytes placed in VRAM through BAR1 (type %d)", size, bt); }
+             return 0; }
+         if (bp) pvkUnmapMemory(g_dev, bm);
+@@ -1456,7 +1456,7 @@
+             return -1;
+         }
+     } else VKCK(nvmtl_opaque_AllocateMemory(g_dev, &mai, NULL, &out->mem), "vkAllocateMemory(buffer)");
+-    out->alloc = mr.size;
++    out->alloc = mr.size; out->mtype1 = mt + 1;
+     if (!host_visible) nvmtl_vk_budget_charge(mr.size);
+     VKCK(pvkBindBufferMemory(g_dev, out->buf, out->mem, 0), "vkBindBufferMemory");
+     if (host_visible) { VkResult mr_ = pvkMapMemory(g_dev, out->mem, 0, VK_WHOLE_SIZE, 0, &out->map); if (mr_ != VK_SUCCESS) {
+@@ -2593,7 +2593,7 @@
+         nvlog("item 7: surface %u: a buffer over the imported VRAM was refused - private", surfaceID);
+         return -1;
+     }
+-    out->buf = b; out->mem = m; out->size = need; out->alloc = 0; out->imported = 1;
++    out->buf = b; out->mem = m; out->size = need; out->alloc = 0; out->imported = 1; out->mtype1 = mt + 1;
+     g_buf_made++;
+     return 0;
+ }
+@@ -6888,7 +6888,7 @@
+     g_alloc_bytes -= b->alloc; g_alloc_bytes += mr.size;
+     if (to_sysmem) { g_res3_off++; g_res3_off_b += b->alloc; }
+     else { nvmtl_vk_budget_charge(mr.size); g_res3_on++; g_res3_on_b += mr.size; }
+-    b->mem = nm; b->alloc = mr.size; b->sysmem = to_sysmem ? 1 : 0;
++    b->mem = nm; b->alloc = mr.size; b->sysmem = to_sysmem ? 1 : 0; b->mtype1 = mt + 1;
+     return 0;
+ }
+ 
+@@ -8541,7 +8541,7 @@
+     if (pvkBindBufferMemory(g_dev, out->buf, (VkDeviceMemory)heap->mem, offset) != VK_SUCCESS) {
+         pvkDestroyBuffer(g_dev, (VkBuffer)out->buf, NULL); memset(out, 0, sizeof *out); return -1;
+     }
+-    out->mem = heap->mem; out->placed = 1; out->alloc = 0;
++    out->mem = heap->mem; out->placed = 1; out->alloc = 0; out->mtype1 = (int)heap->memtype + 1;
+     out->moff = offset;
+     out->map = heap->map ? (char *)heap->map + offset : NULL;
+     g_buf_made++;
+@@ -8656,7 +8656,7 @@
+     VkMemoryRequirements mr; pvkGetImageMemoryRequirements(g_dev, (VkImage)out->img, &mr);
+     uint32_t all = g_memp.memoryTypeCount >= 32 ? 0xffffffffu : ((1u << g_memp.memoryTypeCount) - 1u);
+     size_t at = b->moff + offset;
+-    const uint32_t need = b->mtype1 ? 1u << (b->mtype1 - 1) : all;   // an imported buffer knows its one type
++    const uint32_t need = b->mtype1 ? 1u << (b->mtype1 - 1) : all;
+     const char *why = (mr.memoryTypeBits & need) != need ? "memory types" : (mr.alignment && at % mr.alignment) ? "alignment" : NULL;
+     if (why) {
+         nvlog("buffer texture: refused on %s - image types 0x%x of 0x%x, bind at %zu (buffer %zu + %zu) vs alignment %llu",
+--- a/plugin/nvmtl_vk.h
++++ b/plugin/nvmtl_vk.h
+@@ -8,7 +8,7 @@
+ #include <stdint.h>
+ #include <stddef.h>
+ const char *nvmtl_image_ident(const void *addr, char *out, size_t n);
+-typedef struct { void *buf; void *mem; void *map; size_t size; size_t alloc; int placed; void *pool; size_t poff; int imported; int bar1; size_t moff; int sparse, sysmem; int mtype1; /* memory type + 1 when known (imported) */ } nvk_buffer;
++typedef struct { void *buf; void *mem; void *map; size_t size; size_t alloc; int placed; void *pool; size_t poff; int imported; int bar1; size_t moff; int sparse, sysmem; int mtype1; /* memory type + 1 when known */ } nvk_buffer;
+ #include "nvmtl_sample_positions.h"
+ typedef struct { void *img; void *mem; void *view; uint32_t w, h; size_t alloc; uint32_t layout; uint32_t mips; uint32_t fmt, bpp; uint32_t storage, mtl_type, layers; int placed; uint32_t bw, bh; uint32_t samples; uint32_t sysmem; uint32_t vkflags, usage;  uint32_t vpair;  uint64_t up_token; uint32_t kind;
+                  uint32_t ccs_sid, ccs_token, ccs_handle; int ccs_drmfd; /* <wtl> §37.14: a registered compressed scanout image */

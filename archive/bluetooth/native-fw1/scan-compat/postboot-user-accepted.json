@@ -1,0 +1,8 @@
+{
+  "firmware_driver": "1.0.2d1",
+  "bluetoolfixup": "2.7.2d2",
+  "controller_state": "On",
+  "user_accepted": true,
+  "audio_connection_observed": true,
+  "limits": "Long playback, microphone and sleep/wake not comprehensively tested"
+}

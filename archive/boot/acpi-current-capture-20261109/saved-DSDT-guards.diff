@@ -1,0 +1,333 @@
+--- 
+
++++ 
+
+@@ -6,11 +6,11 @@
+
+ * Disassembling to symbolic ASL+ operators
+ *
+-* Disassembly of DSDT.aml, Mon Nov  9 02:02:41 2026
++* Disassembly of DSDT-Z890M-Guarded.aml, Mon Nov  9 02:02:22 2026
+ *
+ * Original Table Header:
+ *     Signature        "DSDT"
+-*     Length           0x0008751D (554269)
++*     Length           0x000877B9 (554937)
+ *     Revision         0x02
+-*     Checksum         0x51
++*     Checksum         0x71
+ *     OEM ID           "ALASKA"
+ *     OEM Table ID     "A M I "
+@@ -41923,4 +41923,6 @@
+
+ }
+ 
++If (CondRefOf (\_SB.PC02.RP01.PXSX))
++{
+ Scope (_SB.PC02.RP01.PXSX)
+ {
+@@ -43530,4 +43532,5 @@
+
+ 0x00                                             // .
+ })
++}
+ }
+ }
+@@ -64899,4 +64902,6 @@
+
+ }
+ 
++If (CondRefOf (\_SB.PC02.RP01.PXSX))
++{
+ Scope (_SB.PC02.RP01.PXSX)
+ {
+@@ -64993,5 +64998,8 @@
+
+ }
+ }
+-
++}
++
++If (CondRefOf (\_SB.PC02.RP02.PXSX))
++{
+ Scope (_SB.PC02.RP02.PXSX)
+ {
+@@ -65088,5 +65096,8 @@
+
+ }
+ }
+-
++}
++
++If (CondRefOf (\_SB.PC02.RP03.PXSX))
++{
+ Scope (_SB.PC02.RP03.PXSX)
+ {
+@@ -65183,5 +65194,8 @@
+
+ }
+ }
+-
++}
++
++If (CondRefOf (\_SB.PC02.RP04.PXSX))
++{
+ Scope (_SB.PC02.RP04.PXSX)
+ {
+@@ -65278,5 +65292,8 @@
+
+ }
+ }
+-
++}
++
++If (CondRefOf (\_SB.PC02.RP05.PXSX))
++{
+ Scope (_SB.PC02.RP05.PXSX)
+ {
+@@ -65373,5 +65390,8 @@
+
+ }
+ }
+-
++}
++
++If (CondRefOf (\_SB.PC02.RP06.PXSX))
++{
+ Scope (_SB.PC02.RP06.PXSX)
+ {
+@@ -65468,5 +65488,8 @@
+
+ }
+ }
+-
++}
++
++If (CondRefOf (\_SB.PC02.RP07.PXSX))
++{
+ Scope (_SB.PC02.RP07.PXSX)
+ {
+@@ -65563,5 +65586,8 @@
+
+ }
+ }
+-
++}
++
++If (CondRefOf (\_SB.PC02.RP08.PXSX))
++{
+ Scope (_SB.PC02.RP08.PXSX)
+ {
+@@ -65658,5 +65684,8 @@
+
+ }
+ }
+-
++}
++
++If (CondRefOf (\_SB.PC02.RP09.PXSX))
++{
+ Scope (_SB.PC02.RP09.PXSX)
+ {
+@@ -65753,5 +65782,8 @@
+
+ }
+ }
+-
++}
++
++If (CondRefOf (\_SB.PC02.RP10.PXSX))
++{
+ Scope (_SB.PC02.RP10.PXSX)
+ {
+@@ -65848,5 +65880,8 @@
+
+ }
+ }
+-
++}
++
++If (CondRefOf (\_SB.PC02.RP11.PXSX))
++{
+ Scope (_SB.PC02.RP11.PXSX)
+ {
+@@ -65943,5 +65978,8 @@
+
+ }
+ }
+-
++}
++
++If (CondRefOf (\_SB.PC02.RP12.PXSX))
++{
+ Scope (_SB.PC02.RP12.PXSX)
+ {
+@@ -66038,5 +66076,8 @@
+
+ }
+ }
+-
++}
++
++If (CondRefOf (\_SB.PC02.RP13.PXSX))
++{
+ Scope (_SB.PC02.RP13.PXSX)
+ {
+@@ -66133,5 +66174,8 @@
+
+ }
+ }
+-
++}
++
++If (CondRefOf (\_SB.PC02.RP14.PXSX))
++{
+ Scope (_SB.PC02.RP14.PXSX)
+ {
+@@ -66228,5 +66272,8 @@
+
+ }
+ }
+-
++}
++
++If (CondRefOf (\_SB.PC02.RP15.PXSX))
++{
+ Scope (_SB.PC02.RP15.PXSX)
+ {
+@@ -66323,5 +66370,8 @@
+
+ }
+ }
+-
++}
++
++If (CondRefOf (\_SB.PC02.RP16.PXSX))
++{
+ Scope (_SB.PC02.RP16.PXSX)
+ {
+@@ -66418,5 +66468,8 @@
+
+ }
+ }
+-
++}
++
++If (CondRefOf (\_SB.PC02.RP17.PXSX))
++{
+ Scope (_SB.PC02.RP17.PXSX)
+ {
+@@ -66513,5 +66566,8 @@
+
+ }
+ }
+-
++}
++
++If (CondRefOf (\_SB.PC02.RP18.PXSX))
++{
+ Scope (_SB.PC02.RP18.PXSX)
+ {
+@@ -66608,5 +66664,8 @@
+
+ }
+ }
+-
++}
++
++If (CondRefOf (\_SB.PC02.RP19.PXSX))
++{
+ Scope (_SB.PC02.RP19.PXSX)
+ {
+@@ -66703,5 +66762,8 @@
+
+ }
+ }
+-
++}
++
++If (CondRefOf (\_SB.PC02.RP20.PXSX))
++{
+ Scope (_SB.PC02.RP20.PXSX)
+ {
+@@ -66798,5 +66860,8 @@
+
+ }
+ }
+-
++}
++
++If (CondRefOf (\_SB.PC02.RP21.PXSX))
++{
+ Scope (_SB.PC02.RP21.PXSX)
+ {
+@@ -66893,5 +66958,8 @@
+
+ }
+ }
+-
++}
++
++If (CondRefOf (\_SB.PC02.RP22.PXSX))
++{
+ Scope (_SB.PC02.RP22.PXSX)
+ {
+@@ -66988,5 +67056,8 @@
+
+ }
+ }
+-
++}
++
++If (CondRefOf (\_SB.PC02.RP23.PXSX))
++{
+ Scope (_SB.PC02.RP23.PXSX)
+ {
+@@ -67083,5 +67154,8 @@
+
+ }
+ }
+-
++}
++
++If (CondRefOf (\_SB.PC02.RP24.PXSX))
++{
+ Scope (_SB.PC02.RP24.PXSX)
+ {
+@@ -67176,4 +67250,5 @@
+
+ 
+ Return (0x63)
++}
+ }
+ }
+@@ -71575,4 +71650,6 @@
+
+ }
+ 
++If (CondRefOf (\_SB.PC02.HDAS))
++{
+ Scope (_SB.PC02.HDAS)
+ {
+@@ -71636,4 +71713,5 @@
+
+ Concatenate (Arg0, Arg1, GBUF) /* \_SB_.PC02.HDAS.ACCG.GBUF */
+ Return (GBUF) /* \_SB_.PC02.HDAS.ACCG.GBUF */
++}
+ }
+ }
+@@ -72138,4 +72216,6 @@
+
+ }
+ 
++If (CondRefOf (\_SB.PC02.HDAS))
++{
+ Scope (_SB.PC02.HDAS)
+ {
+@@ -72152,4 +72232,5 @@
+
+ {
+ Return (0x0F)
++}
+ }
+ }

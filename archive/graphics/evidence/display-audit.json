@@ -1,0 +1,17 @@
+{
+  "physical_pixels": [
+    3840,
+    2160
+  ],
+  "logical_size": [
+    1920,
+    1080
+  ],
+  "refresh_hz": 60,
+  "hidpi": true,
+  "source": "Saved display validation, reduced to functional fields",
+  "native_module_stage": 7,
+  "accel_stage": 2,
+  "metal_probes_passed": true,
+  "live_display_queries_passed": true
+}

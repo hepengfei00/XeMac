@@ -1,0 +1,71 @@
+--- a/include/AirportRTWDiagnostics.h
++++ b/include/AirportRTWDiagnostics.h
+@@ -8,6 +8,11 @@
+ #define RTW_DIAGNOSTICS 1
+ #define RTW_LOG(...) IOLog(__VA_ARGS__)
+ #define RTW_DIAGNOSTIC(...) do { __VA_ARGS__; } while (0)
++#elif 1 /* Local Release stage diagnostics, without DEBUG or AWDL probe. */
++// Keep Release behavior and AWDL startup probing off; expose stage markers only.
++#define RTW_DIAGNOSTICS 0
++#define RTW_LOG(...) IOLog(__VA_ARGS__)
++#define RTW_DIAGNOSTIC(...) do { __VA_ARGS__; } while (0)
+ #else
+ #define RTW_DIAGNOSTICS 0
+ #define RTW_LOG(...) do {} while (0)
+--- a/AirportRTW/WCL/AirportRTWV2.cpp
++++ b/AirportRTW/WCL/AirportRTWV2.cpp
+@@ -304,6 +304,7 @@
+     };
+     RTW_DIAGNOSTIC(provider->setProperty("RTWStartupDiagnostics", "Tahoe-startup-v2"));
+     RTW_DIAGNOSTIC(provider->setProperty("RTWStartupFailed", kOSBooleanFalse));
++    setProperty("RTWLocalBuild", "2.3.1-site-diagnostics-1");
+     stage("OS version check");
+ #if __IO80211_TARGET == __MAC_15_2
+     if (version_major != 24 || version_minor < 2) {
+@@ -1266,8 +1267,13 @@
+ 
+ IOReturn AirportRTW::enableAdapter(IONetworkInterface *netif)
+ {
++    setProperty("RTWLocalPowerStage", "HAL-enable-enter");
++    IOLog("RTWLocal231.1: HAL enable enter\n");
+ #ifdef AIRPORT_WCL
+     IOReturn status = fHalService->enable(netif);
++    setProperty("RTWLocalPowerStage", "HAL-enable-return");
++    setProperty("RTWLocalPowerResult", uint64_t(uint32_t(status)), 32);
++    IOLog("RTWLocal231.1: HAL enable return 0x%x\n", status);
+     if (status != kIOReturnSuccess)
+         return status;
+ #else
+--- a/AirportRTW/WCL/WCL.cpp
++++ b/AirportRTW/WCL/WCL.cpp
+@@ -219,6 +219,8 @@
+ IOReturn AirportRTWSkywalkInterface::wclCommand(OSObject *, void *a0, void *a1, void *a2, void *)
+ {
+     auto self = static_cast<AirportRTWSkywalkInterface *>(a0);
++    self->instance->setProperty("RTWLocalLastGatedCommand", uint64_t(uintptr_t(a1)), 32);
++    IOLog("RTWLocal231.1: gated command %lu\n", (unsigned long)uintptr_t(a1));
+     if (self->wclStopping)
+         return kIOReturnNotReady;
+     switch (uintptr_t(a1)) {
+@@ -255,7 +257,12 @@
+ 
+ IOReturn AirportRTWSkywalkInterface::setWCL_SCAN_REQ(apple80211ScanRequest *request)
+ {
+-    return _fCommandGate->runAction(wclCommand, this, nullptr, request);
++    instance->setProperty("RTWLocalScanGate", "enter");
++    IOLog("RTWLocal231.1: scan gate enter\n");
++    IOReturn status = _fCommandGate->runAction(wclCommand, this, nullptr, request);
++    instance->setProperty("RTWLocalScanGate", "return");
++    IOLog("RTWLocal231.1: scan gate return 0x%x\n", status);
++    return status;
+ }
+ 
+ IOReturn AirportRTWSkywalkInterface::setWCL_SCAN_ABORT(void *)
+@@ -346,6 +353,7 @@
+ 
+ void AirportRTWSkywalkInterface::finishWCLScan(IOReturn status)
+ {
++    IOLog("RTWLocal231.1: scan completion status=0x%x pending=%d\n", status, scanPending);
+     if (!scanPending)
+         return;
+     scanPending = false;

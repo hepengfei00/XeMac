@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>xegfx-disp-bootarm</key>
+	<data>
+	AQAAAA==
+	</data>
+	<key>xegfx-disp-expose</key>
+	<data>
+	AQAAAA==
+	</data>
+	<key>xegfx-disp-external-dp</key>
+	<data>
+	AQAAAA==
+	</data>
+	<key>xegfx-disp-fail</key>
+	<data>
+	AAAAAA==
+	</data>
+	<key>xegfx-disp-kms</key>
+	<data>
+	AwAAAA==
+	</data>
+	<key>xegfx-disp-once</key>
+	<data>
+	AQAAAA==
+	</data>
+	<key>xegfx-disp-phase</key>
+	<data>
+	AgAAAA==
+	</data>
+	<key>xegfx-disp-starts</key>
+	<data>
+	AAAAAA==
+	</data>
+	<key>xegfx-disp-trial</key>
+	<data>
+	AQAAAA==
+	</data>
+</dict>
+</plist>

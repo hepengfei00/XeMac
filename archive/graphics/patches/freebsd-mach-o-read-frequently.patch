@@ -1,0 +1,11 @@
+--- a/sys/sys/systm.h
++++ b/sys/sys/systm.h
+@@ -87,7 +87,7 @@
+  * Align variables.
+  */
+ #define	__read_mostly		__section(".data.read_mostly")
+-#define	__read_frequently	__section(".data.read_frequently")
++#define	__read_frequently	/* Mach-O: optional ELF placement hint */
+ #define	__exclusive_cache_line	__aligned(CACHE_LINE_SIZE) \
+ 				    __section(".data.exclusive_cache_line")
+ #if defined(_STANDALONE)

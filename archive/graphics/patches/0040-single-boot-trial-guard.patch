@@ -1,0 +1,120 @@
+--- a/gpu/xegfx/shim/src/xnu/xg_kext.cpp
++++ b/gpu/xegfx/shim/src/xnu/xg_kext.cpp
+@@ -2052,6 +2052,46 @@
+ 	return armed;
+ }
+ 
++/* Consume an explicitly armed trial before entering any GPU stage. */
++static bool
++xg_trial_once_begin(void)
++{
++	IORegistryEntry *o = IORegistryEntry::fromPath("/options", gIODTPlane);
++	if (o == nullptr)
++		return false;
++	OSObject *value = o->copyProperty("xegfx-disp-once");
++	if (value == nullptr) {
++		o->release();
++		return true; /* Existing upstream installations have no one-shot key. */
++	}
++	OSData *d = OSDynamicCast(OSData, value);
++	uint32_t armed = 0;
++	if (d != nullptr && d->getLength() == sizeof(armed))
++		memcpy(&armed, d->getBytesNoCopy(), sizeof(armed));
++	value->release();
++	bool ok = false;
++	if (armed == 1) {
++		uint32_t zero = 0;
++		OSData *off = OSData::withBytes(&zero, sizeof(zero));
++		if (off != nullptr) {
++			ok = o->setProperty("xegfx-disp-once", off);
++			off->release();
++		}
++		OSObject *check = o->copyProperty("xegfx-disp-once");
++		OSData *saved = OSDynamicCast(OSData, check);
++		uint32_t got = 1;
++		if (saved != nullptr && saved->getLength() == sizeof(got))
++			memcpy(&got, saved->getBytesNoCopy(), sizeof(got));
++		ok = ok && got == 0;
++		OSSafeReleaseNULL(check);
++	}
++	o->release();
++	if (ok)
++		IOService::publishResource("WTLArrowTrialActive", kOSBooleanTrue);
++	IOLog("XeGfx: one-shot trial %s; next boot does not auto-arm this trial\n", ok ? "consumed" : "not armed");
++	return ok;
++}
++
+ /* K4: NVRAM xegfx-disp-bootmode, 16 bytes LE: 'XBM1', refresh mHz, desktop width, height (the adapter writes it) */
+ static bool
+ xg_nvram_boot_mode(uint32_t *mhz, uint32_t *w, uint32_t *h)
+@@ -2337,7 +2377,7 @@
+ 		int res_armed = xg_resource_flag("XeGfxBootArm") ? 1 : 0;
+ 		int nv_armed = xg_nvram_flag("xegfx-disp-bootarm") ? 1 : 0;
+ 
+-		gBootTrigger = res_armed | (nv_armed << 1);
++		gBootTrigger = xg_trial_once_begin() ? (res_armed | (nv_armed << 1)) : 0;
+ 		if (gBootTrigger != 0) {
+ 			thread_t th = nullptr;
+ 			IOService *res = IOService::getResourceService();
+--- a/kexts/XeGfxDisplay/src/XeGfxDisplay.cpp
++++ b/kexts/XeGfxDisplay/src/XeGfxDisplay.cpp
+@@ -4299,6 +4299,30 @@
+  * with the reason in the log for every other combination.  A decline leaves
+  * the IntelFB placeholder exactly as it is.
+  */
++/* The core consumes the trial token; its resource is valid only in this boot. */
++static bool
++xgTrialOnceAllowed()
++{
++    IORegistryEntry *o = IORegistryEntry::fromPath("/options", gIODTPlane);
++    if (!o) return false;
++    OSObject *value = o->copyProperty("xegfx-disp-once");
++    o->release();
++    if (!value) return true;
++    OSData *d = OSDynamicCast(OSData, value);
++    uint32_t armed = 0;
++    if (d && d->getLength() == sizeof armed)
++        memcpy(&armed, d->getBytesNoCopy(), sizeof armed);
++    value->release();
++    if (armed == 1) return true;
++    for (unsigned n = 0; n < 20; n++) {
++        IOService *resources = IOService::getResourceService();
++        if (resources && resources->getProperty("WTLArrowTrialActive") == kOSBooleanTrue)
++            return true;
++        IOSleep(1);
++    }
++    return false;
++}
++
+ static bool
+ xgS3ClaimArmed(const char *caller)
+ {
+@@ -4309,6 +4333,10 @@
+ #else
+     uint32_t phase = 0, trial = 0, fail = 0, starts = 0, expose = 0;
+ 
++    if (!xgTrialOnceAllowed()) {
++        XLOG("claim %s: one-shot trial exhausted; firmware framebuffer retained", caller);
++        return false;
++    }
+     if (!xgNvramU32(XEGFX_DISPLAY_NVRAM_PHASE, &phase) ||
+         !xgNvramU32(XEGFX_DISPLAY_NVRAM_TRIAL, &trial)) {
+         XLOG("claim %s: no xegfx-disp-phase/trial in NVRAM; declining, "
+--- a/gpu/xegfx/shim/src/xnu/xg_kext.cpp
++++ b/gpu/xegfx/shim/src/xnu/xg_kext.cpp
+@@ -2378,6 +2378,7 @@
+ 		int nv_armed = xg_nvram_flag("xegfx-disp-bootarm") ? 1 : 0;
+ 
+ 		gBootTrigger = xg_trial_once_begin() ? (res_armed | (nv_armed << 1)) : 0;
++		xg_display_set_external_dp(xg_nvram_flag("xegfx-disp-external-dp") ? 1 : 0);
+ 		if (gBootTrigger != 0) {
+ 			thread_t th = nullptr;
+ 			IOService *res = IOService::getResourceService();
+@@ -2392,7 +2393,6 @@
+ 			{
+ 				/* 1 = K1 read-only adoption, 2 = K2a: K1 + atomic check only, 3 = K2: + one 60 Hz commit; higher -> 3 */
+ 				uint32_t kms = xg_nvram_u32("xegfx-disp-kms");
+-				xg_display_set_external_dp(xg_nvram_flag("xegfx-disp-external-dp") ? 1 : 0);
+ 				if (kms > 3)
+ 					kms = 3;
+ 				if (kms >= 1) {

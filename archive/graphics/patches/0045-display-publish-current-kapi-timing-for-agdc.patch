@@ -1,0 +1,98 @@
+--- a/kexts/XeGfxDisplay/src/XeGfxDisplay.cpp
++++ b/kexts/XeGfxDisplay/src/XeGfxDisplay.cpp
+@@ -61,7 +61,7 @@
+  */
+ extern "C" kern_return_t _start(kmod_info_t *ki, void *d);
+ extern "C" kern_return_t _stop(kmod_info_t *ki, void *d);
+-extern "C" { KMOD_EXPLICIT_DECL(org.watchthelight.XeGfxDisplay, "0.5", _start, _stop) }
++extern "C" { KMOD_EXPLICIT_DECL(org.watchthelight.XeGfxDisplay, "0.5.45", _start, _stop) }
+ extern "C" kern_return_t _start(kmod_info_t *ki, void *d) { return KERN_SUCCESS; }
+ extern "C" kern_return_t _stop(kmod_info_t *ki, void *d)  { return KERN_SUCCESS; }
+ 
+@@ -365,6 +365,8 @@
+     if (rc == XEGFX_OK && pt.tag == XEGFX_NVK5_TIMING_TAG) {
+         memcpy(fKapiTimingWords, &pt, sizeof pt);
+         fKapiTimingReady = true;
++        if (!publishAgdcTiming())
++            return false;
+         XLOG("kapi: timing READY %ux%u tot %ux%u pclk %u Hz refresh %u mHz "
+              "hsync+%u vsync+%u", pt.hVisible, pt.vVisible, pt.hTotal,
+              pt.vTotal, pt.pixelClockHz, pt.refreshMilliHz, pt.hSyncPositive,
+@@ -1606,6 +1608,8 @@
+             if (rc != XEGFX_OK)
+                 return kIOReturnError;
+             fS3Cur = (uint32_t)base;
++            if (!publishAgdcTiming())
++                return kIOReturnError;
+             setProperty("XeGfxK3RefreshMHz", (unsigned long long)fMeasuredModes[base].refreshMHz, 32);
+             changed = true;
+         }
+@@ -3681,6 +3685,40 @@
+     return delta * 200ull <= a.pixelClock;
+ }
+ 
++bool
++XeGfxFramebuffer::publishAgdcTiming()
++{
++    struct XeGfxKmsPanelTiming pt;
++    bzero(&pt, sizeof pt);
++    if (!fKapi || fKapi->getTiming(fCtx, fIndex, &pt) != XEGFX_OK) {
++        removeProperty("NVRMTiming");
++        XLOG("AGDC: current KAPI timing unavailable; capabilities remain unavailable");
++        return false;
++    }
++    uint32_t words[XEGFX_NVK5_TIMING_WORDS];
++    memcpy(words, &pt, sizeof words);
++    struct XeGfxKmsTiming parsed;
++    uint64_t clockHz = 0;
++    uint32_t refreshMHz = 0;
++    const char *why = "";
++    if (!parseNvk5Timing(words, XEGFX_NVK5_TIMING_WORDS, &parsed,
++                         &clockHz, &refreshMHz, &why)) {
++        removeProperty("NVRMTiming");
++        XLOG("AGDC: current KAPI timing rejected: %s", why);
++        return false;
++    }
++    OSData *data = OSData::withBytes(words, sizeof words);
++    const bool ok = data && setProperty("NVRMTiming", data);
++    if (data)
++        data->release();
++    if (!ok)
++        removeProperty("NVRMTiming");
++    XLOG("AGDC: current KAPI timing %ux%u clock %llu Hz refresh %u mHz %s",
++         (unsigned)parsed.hdisplay, (unsigned)parsed.vdisplay,
++         (unsigned long long)clockHz, refreshMHz, ok ? "published" : "allocation failed");
++    return ok;
++}
++
+ void
+ XeGfxFramebuffer::publishS3Timing()
+ {
+@@ -3854,7 +3892,7 @@
+     XLOG("S3: IOFramebuffer::start END");
+     fFbStarted = true;
+     setProperty("XeGfxDisplayVersion",
+-                fM3d ? "0.5-m3d" : "0.5-s3");
++                fM3d ? "0.5.45-m3d" : "0.5.45-s3");
+ 
+     /*
+      * Arm the watchdog even when the preflight failed: no aperture + open
+@@ -3869,6 +3907,8 @@
+         if (fM3dChecks == XEGFX_M3D_CHECKS_ALL && m3dAllocScanout()) {
+             fM3dCandidate = true;
+             k4ApplyBootState();
++            if (!publishAgdcTiming())
++                fM3dCandidate = false;
+         }
+         fWorkLoop = getWorkLoop();
+         setProperty("XeGfxControllerReady", fWorkLoop ? kOSBooleanTrue : kOSBooleanFalse);
+--- a/kexts/XeGfxDisplay/src/XeGfxDisplay.h
++++ b/kexts/XeGfxDisplay/src/XeGfxDisplay.h
+@@ -408,6 +408,7 @@
+     /* ---- phases ------------------------------------------------------ */
+     bool     readKapi(IOService *provider);      /* M1 */
+     bool     kapiInit();                         /* M1 + head claim */
++    bool     publishAgdcTiming();
+     void     loadNubEdid(IOService *provider);   /* panel EDID the core read over AUX */
+     bool     buildModeTable();                   /* M2 */
+     bool     buildMeasuredModeTable(const void *bytes, uint32_t length); /* M3a */

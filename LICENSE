@@ -1,0 +1,13 @@
+Component licensing entry point
+
+New, independently authored repository documentation and repository tools are
+licensed under the MIT License in LICENSES/MIT.txt.
+
+Inherited and derived source code, patches, and historical material retain their
+original licenses and copyright notices. In particular, parts of the graphics
+stack and its Metal plugin are subject to PolyForm Noncommercial License 1.0.0.
+AirportRTW and Bluetooth derivatives retain their applicable GPL licenses.
+OpenCore, VirtualSMC, i915 and other dependencies retain their respective terms.
+
+See THIRD-PARTY-NOTICES.md, LICENSES/, the source file headers, and the pinned
+upstream repositories in docs/UPSTREAMS.md for component scope and attribution.

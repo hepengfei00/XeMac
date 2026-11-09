@@ -1,0 +1,87 @@
+--- 
+
++++ 
+
+@@ -6,5 +6,5 @@
+
+  * Disassembling to symbolic ASL+ operators
+  *
+- * Disassembly of DSDT.aml, Mon Nov  9 02:02:41 2026
++ * Disassembly of DSDT-current.aml, Mon Nov  9 02:18:11 2026
+  *
+  * Original Table Header:
+@@ -12,5 +12,5 @@
+
+  *     Length           0x0008751D (554269)
+  *     Revision         0x02
+- *     Checksum         0x51
++ *     Checksum         0xAB
+  *     OEM ID           "ALASKA"
+  *     OEM Table ID     "A M I "
+@@ -1698,5 +1698,5 @@
+
+     Name (TPMM, 0xFED40000)
+     Name (FTPM, 0xFED40040)
+-    Name (PPIM, 0x418FAF18)
++    Name (PPIM, 0x41673F18)
+     Name (PPIL, 0x1C)
+     Name (AMDT, Zero)
+@@ -1706,7 +1706,7 @@
+
+     Name (LGMB, 0xFC00)
+     Name (LGMS, 0x00010000)
+-    Name (SANB, 0x418FAC98)
++    Name (SANB, 0x41673C98)
+     Name (SANL, 0x0138)
+-    Name (VMNB, 0x418FAF98)
++    Name (VMNB, 0x41673F98)
+     Name (VMNL, 0x000B)
+     Name (BRMT, Zero)
+@@ -1835,5 +1835,5 @@
+
+     }
+ 
+-    OperationRegion (GNVS, SystemMemory, 0x4181E000, 0x0DAD)
++    OperationRegion (GNVS, SystemMemory, 0x41597000, 0x0DAD)
+     Field (GNVS, AnyAcc, Lock, Preserve)
+     {
+@@ -3768,5 +3768,5 @@
+
+     }
+ 
+-    Name (PNVB, 0x418FA098)
++    Name (PNVB, 0x41673098)
+     Name (PNVL, 0x04AF)
+     OperationRegion (PNVA, SystemMemory, PNVB, PNVL)
+@@ -4205,5 +4205,5 @@
+
+     }
+ 
+-    Name (TPNB, 0x41823000)
++    Name (TPNB, 0x4159C000)
+     Name (TPNL, 0x0059)
+     OperationRegion (TPNV, SystemMemory, TPNB, TPNL)
+@@ -4254,5 +4254,5 @@
+
+     Name (ROMS, 0xFFE00000)
+     Name (VGAF, One)
+-    Name (CNVB, 0x41519000)
++    Name (CNVB, 0x41292000)
+     Name (CNVL, 0x0020)
+     OperationRegion (CPNV, SystemMemory, CNVB, CNVL)
+@@ -10713,5 +10713,5 @@
+
+     }
+ 
+-    Name (SNVB, 0x41826000)
++    Name (SNVB, 0x4159F000)
+     Name (SNVL, 0x0008)
+     OperationRegion (SBNV, SystemMemory, SNVB, SNVL)
+@@ -18112,5 +18112,5 @@
+
+     If ((PCHA != Zero))
+     {
+-        Name (MNVB, 0x418FA718)
++        Name (MNVB, 0x41673718)
+         Name (MNVL, 0x020F)
+         Scope (_SB.PC02)

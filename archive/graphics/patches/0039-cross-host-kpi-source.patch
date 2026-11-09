@@ -1,0 +1,29 @@
+--- a/gpu/xegfx/tools/kpi_split.py
++++ b/gpu/xegfx/tools/kpi_split.py
+@@ -5,7 +5,7 @@
+ sys.path.insert(0, os.path.expanduser(os.environ.get("XEGFX_KCABI", "~/src/kcabi")))
+ import kcfile, linkcheck
+ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+-kc = kcfile.KC("/System/Library/KernelCollections/BootKernelExtensions.kc")
++kc = kcfile.KC(os.environ.get("KCABI_KC", "/System/Library/KernelCollections/BootKernelExtensions.kc"))
+ exp = linkcheck.exported(kc)
+ # XNU exports some names FreeBSD also uses with another ABI (eventhandler_*, selrecord, ...): a name binds to XNU
+ # only when tools/xnu-allow.txt lists it as checked
+--- a/gpu/xegfx/tools/kpi_check.py
++++ b/gpu/xegfx/tools/kpi_check.py
+@@ -1,12 +1,13 @@
+ #!/usr/bin/env python3
+ # Usage: tools/kpi_check.py <kext> : every undefined symbol must come from a library the kext declares in
+ # OSBundleLibraries, never from com.apple.kpi.private (Apple-internal). Prints the offenders, exit 1 if any.
+-import plistlib, re, subprocess, sys
++import os, plistlib, re, subprocess, sys
+ kext = sys.argv[1]
+ decl = set(plistlib.load(open(kext + "/Contents/Info.plist", "rb"))["OSBundleLibraries"]) - {"com.apple.kpi.private"}
+ exe = kext + "/Contents/MacOS/" + plistlib.load(open(kext + "/Contents/Info.plist", "rb"))["CFBundleExecutable"]
+ und = {l.split()[-1] for l in subprocess.run(["nm", "-u", exe], capture_output=True, text=True).stdout.split("\n") if l.strip()}
+-out = subprocess.run(["kmutil", "libraries", "-p", kext, "--undef-symbols"], capture_output=True, text=True).stdout
++report = os.environ.get("XEGFX_KPI_REPORT")
++out = open(report).read() if report else subprocess.run(["kmutil", "libraries", "-p", kext, "--undef-symbols"], capture_output=True, text=True).stdout
+ ok, cur = set(), None
+ for line in out.splitlines():
+     m = re.match(r"^\s+(_\S+) in (multiple:|/\S+: (\S+) \()", line)

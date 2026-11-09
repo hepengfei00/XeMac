@@ -1,0 +1,23 @@
+--- a/onboot-verified.sh
++++ b/onboot-verified.sh
+@@ -97,8 +97,18 @@
+ sysctl -b debug.xegfx_disp > "$root/display-report.txt"
+ grep -E 'commit.*(ok|ret 0|ret=0)|K3 fixed mode .*3840x2160.*committed' "$root/display-report.txt"
+ current_stage=published_timing
+-"$root/agdc-timing-check" > "$root/timing-check.txt" 2>&1
+-grep -q 'live NVRMTiming: present' "$root/timing-check.txt"
++timing_ready=0
++for timing_attempt in $(seq 1 30); do
++    timing_rc=0
++    "$root/agdc-timing-check" > "$root/timing-check.txt" 2>&1 || timing_rc=$?
++    if [ "$timing_rc" = 0 ] && grep -q 'live NVRMTiming: present' "$root/timing-check.txt"; then
++        timing_ready=1
++        break
++    fi
++    case "$timing_rc" in 0|2|3) ;; *) exit "$timing_rc";; esac
++    sleep 2
++done
++[ "$timing_ready" = 1 ]
+ current_stage=alias_probe
+ NM_TEST_PLUGIN=/Library/GPUBundles/XeMTLDriver.bundle/Contents/MacOS/XeMTLDriver XEMTL_LOG_PATH="$root/alias-probe-plugin.log" "$root/alias/mtlprobe" > "$root/alias-probe-result.txt" 2>&1
+ grep -q 'pooled alias GPU clear and CPU visibility: OK' "$root/alias-probe-result.txt"

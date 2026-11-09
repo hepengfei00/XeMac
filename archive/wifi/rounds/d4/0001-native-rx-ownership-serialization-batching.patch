@@ -1,0 +1,682 @@
+--- a/rtw/hal_rtw89/RTWCore89.cpp
++++ b/rtw/hal_rtw89/RTWCore89.cpp
+@@ -63,6 +63,8 @@
+     return RealtekHal::family(vendor, product) == RealtekHal::Family::RTW89;
+ }
+ 
++#include "RTWCore89NativeRx.inc"
++
+ bool RTWCore89::attach(IOPCIDevice *device)
+ {
+     int noHE = 0;
+@@ -82,6 +84,9 @@
+     if (!transport)
+         goto fail;
+ 
++    RTW_DIAGNOSTIC(device->setProperty("RTWHALStage", "native receive queue"));
++    if (!initializeNativeRx())
++        goto fail;
+     RTW_DIAGNOSTIC(device->setProperty("RTWHALStage", "scan dwell timer"));
+     scanDwellTimer = IOTimerEventSource::timerEventSource(
+         this, &RTWCore89::scanDwellExpired);
+@@ -111,6 +116,7 @@
+     RTW_LOG("AirportRTW-RTW89: Linux PCI probe complete\n");
+     linuxContext.nativeOwner = this;
+     linuxContext.receive = receive;
++    linuxContext.queueReceive = enqueueNativeRx;
+ #if RTW_DIAGNOSTICS
+     linuxContext.traceReceive = traceReceive;
+ #endif
+@@ -163,9 +169,11 @@
+     return true;
+ 
+ fail_linux:
++    stopNativeRx();
+     transport->disableInterrupts();
+     rtw89LinuxDetach(transport, &linuxContext);
+ fail:
++    stopNativeRx();
+     RTW_LOG("AirportRTW-RTW89: attach failed\n");
+     if (associationRecoveryTimer) {
+         associationRecoveryTimer->cancelTimeout();
+@@ -200,6 +208,7 @@
+ {
+     (void)device;
+     RTW_LOG("AirportRTW-RTW89: detach begin\n");
++    stopNativeRx();
+     if (transport)
+         transport->disableInterrupts();
+     if (scanDwellTimer) {
+@@ -209,6 +218,14 @@
+         scanDwellTimer->release();
+         scanDwellTimer = nullptr;
+     }
++    if (associationRecoveryTimer) {
++        associationRecoveryTimer->cancelTimeout();
++        associationRecoveryTimer->disable();
++        getMainWorkLoop()->removeEventSource(associationRecoveryTimer);
++        associationRecoveryTimer->release();
++        associationRecoveryTimer = nullptr;
++    }
++    sc.sc_flags &= ~RTW89_FLAG_ENABLED;
+     detachNet80211();
+     if (transport)
+         rtw89LinuxDetach(transport, &linuxContext);
+@@ -232,15 +249,20 @@
+         return kIOReturnNotReady;
+     if (sc.sc_flags & RTW89_FLAG_ENABLED)
+         return kIOReturnSuccess;
++    if (!resumeNativeRx())
++        return kIOReturnNotReady;
+ #ifdef AIRPORT_WCL
+-    if (!rtw89LinuxSetMacAddress(&linuxContext, sc.sc_ic.ic_myaddr))
++    if (!rtw89LinuxSetMacAddress(&linuxContext, sc.sc_ic.ic_myaddr)) {
++        pauseNativeRx();
+         return kIOReturnBadArgument;
++    }
+     Rtw89PciTransport::recordPowerStage("reset-event-enter");
+     if (sc.sc_ic.ic_event_handler)
+         sc.sc_ic.ic_event_handler(&sc.sc_ic, IEEE80211_EVT_DRIVER_RESET_BEGIN, nullptr);
+     Rtw89PciTransport::recordPowerStage("reset-event-return");
+ #endif
+     if (!rtw89LinuxPowerUp(&linuxContext)) {
++        pauseNativeRx();
+ #ifdef AIRPORT_WCL
+         if (sc.sc_ic.ic_event_handler)
+             sc.sc_ic.ic_event_handler(&sc.sc_ic, IEEE80211_EVT_DRIVER_STOPPED, nullptr);
+@@ -280,6 +302,7 @@
+ {
+     (void)interface;
+     RTW_LOG("AirportRTW-RTW89: Wi-Fi disable begin\n");
++    pauseNativeRx();
+     if (associationRecoveryTimer)
+         associationRecoveryTimer->cancelTimeout();
+     associationRecoveryPending = 0;
+@@ -305,8 +328,12 @@
+ 
+ void RTWCore89::free()
+ {
+-    ieee80211_sae_clear(&sc.sc_ic, true);
++    stopNativeRx();
+     detach(pciDevice);
++    if (nativeRxLock) {
++        IOSimpleLockFree(nativeRxLock);
++        nativeRxLock = nullptr;
++    }
+     super::free();
+ }
+ 
+@@ -601,12 +628,16 @@
+ 
+ void RTWCore89::watchdog(struct _ifnet *ifp)
+ {
+-    /* The Linux RTW89 core schedules its own periodic maintenance work.
+-     * AirportRTW still expects every HAL to expose a BSD watchdog hook. */
+-    auto *sc = ifp ? static_cast<struct rtw89_softc *>(ifp->if_softc) : nullptr;
+-    if (!sc)
+-        return;
+-    auto *owner = container_of(sc, RTWCore89, sc);
++    auto *state = ifp ? static_cast<struct rtw89_softc *>(ifp->if_softc) : nullptr;
++    if (state) container_of(state, RTWCore89, sc)->requestNativeRxStatistics();
++}
++
++void RTWCore89::publishNativeRxStatistics()
++{
++    auto *owner = this;
++    auto *sc = &owner->sc;
++    if (!getMainWorkLoop()->inGate()) return;
++
+     const UInt64 coexCount=__atomic_load_n(&owner->linuxContext.coexObservations,__ATOMIC_ACQUIRE);
+     if(coexCount && coexCount!=owner->publishedCoexObservations) {
+         auto *coexController=owner->getController();
+@@ -880,6 +911,47 @@
+     RTW_DIAGNOSTIC(controller->setProperty("RTW89LastReceiveSignalRaw",
+                             (UInt64)owner->lastReceiveSignalRaw, 8));
+ #endif
++
++    auto *target = getController();
++    if (!target) return;
++    IOSimpleLockLock(nativeRxLock);
++    const auto q = nativeRxQueue.statistics();
++    const unsigned depth = nativeRxQueue.depth();
++    const size_t bytes = nativeRxQueue.queuedBytes();
++    IOSimpleLockUnlock(nativeRxLock);
++    target->setProperty("RTWNativeRxMode", "async-owned-buffer-native-gate-batch64");
++    target->setProperty("RTWNativeRxDepth", uint64_t(depth), 64);
++    target->setProperty("RTWNativeRxBytes", uint64_t(bytes), 64);
++    target->setProperty("RTWNativeRxHighWater", uint64_t(q.highWater), 64);
++    target->setProperty("RTWNativeRxHighBytes", uint64_t(q.highBytes), 64);
++    target->setProperty("RTWNativeRxEnqueued", uint64_t(q.enqueued), 64);
++    target->setProperty("RTWNativeRxDrained", uint64_t(q.drained), 64);
++    target->setProperty("RTWNativeRxFullDrops", uint64_t(q.fullDrops), 64);
++    target->setProperty("RTWNativeRxClosedDrops", uint64_t(q.closedDrops), 64);
++    target->setProperty("RTWNativeRxStaleDrops", uint64_t(q.staleDrops), 64);
++    target->setProperty("RTWNativeRxInvalidDrops", uint64_t(q.invalidDrops), 64);
++    target->setProperty("RTWNativeRxActions", uint64_t(nativeRxBatches), 64);
++    target->setProperty("RTWNativeRxFlushes", uint64_t(nativeRxFlushes), 64);
++    target->setProperty("RTWNativeRxDelivered", uint64_t(nativeRxDelivered), 64);
++    target->setProperty("RTWNativeRxPurged", uint64_t(nativeRxPurged), 64);
++    target->setProperty("RTWNativeRxAllocDrops", uint64_t(nativeRxAllocDrops), 64);
++    target->setProperty("RTWNativeRxGateViolations", uint64_t(__atomic_load_n(&nativeRxGateViolations, __ATOMIC_RELAXED)), 64);
++    target->setProperty("RTW89RxDuplicates", uint64_t(sc->sc_ic.ic_stats.is_rx_dup), 64);
++    target->setProperty("RTW89RxCCMPReplays", uint64_t(sc->sc_ic.ic_stats.is_ccmp_replays), 64);
++    target->setProperty("RTW89RxCCMPIntegrityFailures", uint64_t(sc->sc_ic.ic_stats.is_ccmp_dec_errs), 64);
++    target->setProperty("RTW89RxBAAgreements", uint64_t(sc->sc_ic.ic_stats.is_ht_rx_ba_agreements), 64);
++    target->setProperty("RTW89RxBAFrameLost", uint64_t(sc->sc_ic.ic_stats.is_ht_rx_ba_frame_lost), 64);
++    target->setProperty("RTW89RxBAGapTimeout", uint64_t(sc->sc_ic.ic_stats.is_ht_rx_ba_window_gap_timeout), 64);
++    target->setProperty("RTW89RxBANoBuffer", uint64_t(sc->sc_ic.ic_stats.is_ht_rx_ba_no_buf), 64);
++    target->setProperty("RTW89RxBABelowWindow", uint64_t(sc->sc_ic.ic_stats.is_ht_rx_frame_below_ba_winstart), 64);
++    target->setProperty("RTW89RxBAAboveWindow", uint64_t(sc->sc_ic.ic_stats.is_ht_rx_frame_above_ba_winend), 64);
++    target->setProperty("RTW89AmpduRxStartCount", uint64_t(linuxContext.ampduRxStartCount), 64);
++    target->setProperty("RTW89AmpduRxStartFailCount", uint64_t(linuxContext.ampduRxStartFailCount), 64);
++    target->setProperty("RTW89TxAmpduMask", uint64_t(linuxContext.txAmpduMask), 64);
++    target->setProperty("RTW89TxDescAggregationEnabled", uint64_t(linuxContext.txDescAggregationEnabled), 64);
++    target->setProperty("RTW89RxConnectionInvalid", uint64_t(linuxContext.rxConnectionInvalidCount), 64);
++    target->setProperty("RTW89RxConnectionUndecrypted", uint64_t(linuxContext.rxConnectionUndecryptedCount), 64);
++    target->setProperty("RTW89TxBackpressureCount", uint64_t(txBackpressureCount), 64);
+ }
+ 
+ void RTWCore89::scanDwellExpired(OSObject *object, IOTimerEventSource *timer)
+@@ -914,13 +986,18 @@
+ void RTWCore89::start(struct _ifnet *ifp)
+ {
+     auto *sc = static_cast<struct rtw89_softc *>(ifp->if_softc);
+-    if (!sc || !(ifp->if_flags & IFF_RUNNING))
+-        return;
++    if (!sc) return;
+     auto *owner = container_of(sc, RTWCore89, sc);
++    if (!owner->getMainWorkLoop()->inGate()) {
++        owner->requestNativeTx(false);
++        return;
++    }
++    if (!(ifp->if_flags & IFF_RUNNING)) return;
+     __sync_fetch_and_add(&owner->startCallCount, 1);
+     struct ieee80211com *ic = &sc->sc_ic;
+ 
+-    for (;;) {
++    unsigned sent = 0;
++    for (; sent < 64; ++sent) {
+         RTWAwdl::TxGuard submission(owner->linuxContext.awdlTxGate);
+         if (!submission || !rtw89LinuxTxAvailable(&owner->linuxContext)) {
+             __sync_fetch_and_add(&owner->txBackpressureCount, 1);
+@@ -989,18 +1066,13 @@
+         if (node)
+             ieee80211_release_node(ic, node);
+     }
++    if (sent == 64) owner->requestNativeTx(false);
+ }
+ 
+ void RTWCore89::resumeTransmit(void *opaque)
+ {
+     auto *owner = static_cast<RTWCore89 *>(opaque);
+-    if (!owner || !(owner->sc.sc_flags & RTW89_FLAG_ENABLED))
+-        return;
+-    struct _ifnet *ifp = &owner->sc.sc_ic.ic_if;
+-    if (!ifq_is_oactive(&ifp->if_snd))
+-        return;
+-    ifq_clr_oactive(&ifp->if_snd);
+-    start(ifp);
++    if (owner) owner->requestNativeTx(true);
+ }
+ 
+ // Stages: driver core before PPDU queue, bridge entry, native delivery.
+@@ -1063,6 +1135,10 @@
+     auto *owner = static_cast<RTWCore89 *>(opaque);
+     if (!owner || !frame || length < sizeof(struct ieee80211_frame))
+         return;
++    if (!owner->getMainWorkLoop()->inGate() || !owner->nativeRxBatch) {
++        __sync_fetch_and_add(&owner->nativeRxGateViolations, 1);
++        return;
++    }
+     __sync_fetch_and_add(&owner->rawReceiveCount, 1);
+     RTW_DIAGNOSTIC(owner->awdlObserver.observe(frame, length, frequency,
+                                                   radioTimestamp, radioTimestampValid));
+@@ -1088,8 +1164,10 @@
+      * must be contiguous.  Keep only large aggregates chain-capable. */
+     unsigned int contiguousChunks = 1;
+     unsigned int *maxChunks = length <= 4096 ? &contiguousChunks : nullptr;
+-    if (mbuf_allocpacket(MBUF_DONTWAIT, length, maxChunks, &m) != 0)
+-        return;
++    if (mbuf_allocpacket(MBUF_DONTWAIT, length, maxChunks, &m) != 0) {
++        ++owner->nativeRxAllocDrops;
++        return;
++    }
+     size_t copied = 0;
+     for (mbuf_t segment = m; segment && copied < length;
+          segment = mbuf_next(segment)) {
+@@ -1208,14 +1286,28 @@
+         mbuf_freem(m);
+     } else {
+         ieee80211_inputm(&ic->ic_if, m, node, &rxi, &list);
+-        if_input(&ic->ic_if, &list);
++        ml_enlist(owner->nativeRxBatch, &list);
+     }
+     ieee80211_release_node(ic, node);
+     splx(networkPriority);
+ }
+ 
++IOReturn RTWCore89::detachNet80211Gated(OSObject *object, void *, void *, void *, void *)
++{
++    static_cast<RTWCore89 *>(object)->detachNet80211();
++    return kIOReturnSuccess;
++}
++
+ void RTWCore89::detachNet80211()
+ {
++    auto *loop = getMainWorkLoop();
++    if (loop && !loop->inGate()) {
++        loop->runAction(detachNet80211Gated, this);
++        return;
++    }
++    // Teardown shares the protocol gate too: cancel crypto/node timers before
++    // their state is freed, after the deferred receive consumer is removed.
++    ieee80211_sae_clear(&sc.sc_ic, true);
+     if (!(sc.sc_flags & RTW89_FLAG_ATTACHED))
+         return;
+     ieee80211_ifdetach(&sc.sc_ic.ic_if);
+--- a/rtw/hal_rtw89/RTWCore89.hpp
++++ b/rtw/hal_rtw89/RTWCore89.hpp
+@@ -7,6 +7,8 @@
+ #include <IOKit/network/IOEthernetInterface.h>
+ #include <IOKit/pci/IOPCIDevice.h>
+ #include <IOKit/IOTimerEventSource.h>
++#include <IOKit/IOInterruptEventSource.h>
++#include "Rtw89NativeRxQueue.hpp"
+ 
+ #include "../RTWCore.hpp"
+ 
+@@ -92,10 +94,21 @@
+     static void ampduTxStop(struct ieee80211com *, struct ieee80211_node *,
+                             uint8_t);
+ 
++    bool initializeNativeRx();
++    static bool enqueueNativeRx(void *, void *, size_t);
++    static void nativeRxAction(OSObject *, IOInterruptEventSource *, int);
++    void drainNativeRx();
++    bool resumeNativeRx();
++    void pauseNativeRx();
++    void stopNativeRx();
++    void requestNativeTx(bool unstall);
++    void requestNativeRxStatistics();
++    void publishNativeRxStatistics();
+     bool attachNet80211();
+     void configureHECapabilities(bool fiveGHz);
+     bool heDisabled {false};
+     void detachNet80211();
++    static IOReturn detachNet80211Gated(OSObject *, void *, void *, void *, void *);
+ 
+     struct rtw89_softc sc {};
+     IOPCIDevice *pciDevice {nullptr};
+@@ -103,6 +116,13 @@
+     IOTimerEventSource *scanDwellTimer {nullptr};
+     IOTimerEventSource *associationRecoveryTimer {nullptr};
+     Rtw89LinuxContext linuxContext {};
++    IOSimpleLock *nativeRxLock {nullptr};
++    IOInterruptEventSource *nativeRxEvent {nullptr};
++    Rtw89NativeRx::Queue nativeRxQueue;
++    struct mbuf_list *nativeRxBatch {nullptr}; // only under the native gate
++    UInt64 nativeRxBatches {0}, nativeRxFlushes {0}, nativeRxDelivered {0};
++    UInt64 nativeRxPurged {0}, nativeRxAllocDrops {0};
++    volatile UInt64 nativeRxGateViolations {0};
+     volatile UInt64 scanChannelCount {0};
+     RTWAwdl::Observer awdlObserver;
+     UInt64 publishedCoexObservations {0};
+--- a/rtw/hal_rtw89/Rtw89LinuxBridge.cpp
++++ b/rtw/hal_rtw89/Rtw89LinuxBridge.cpp
+@@ -299,8 +299,17 @@
+ 
+ static void completeScan(void *, bool) {}
+ 
++static void queueReceiveFrame(void *opaque, struct sk_buff *skb)
++{
++    auto *context = static_cast<Rtw89LinuxContext *>(opaque);
++    if (skb && context && context->queueReceive &&
++        context->queueReceive(context->nativeOwner, skb, skb->len))
++        return; // The native queue now owns the entire, unchanged skb.
++    kfree_skb(skb);
++}
++
+ static struct rtw88_hw_callbacks hardwareCallbacks = {
+-    receiveFrame, completeTransmit, completeScan
++    queueReceiveFrame, completeTransmit, completeScan
+ };
+ 
+ class WiphyGuard {
+@@ -372,6 +381,16 @@
+ {
+     if (activeContext && activeContext->traceReceive)
+         activeContext->traceReceive(activeContext->nativeOwner, 0, frame, length, flags);
++}
++
++void rtw89LinuxProcessReceivedFrame(Rtw89LinuxContext *context, void *storage)
++{
++    receiveFrame(context, static_cast<struct sk_buff *>(storage));
++}
++
++void rtw89LinuxReleaseReceivedFrame(void *storage)
++{
++    kfree_skb(static_cast<struct sk_buff *>(storage));
+ }
+ 
+ bool rtw89LinuxAttach(Rtw89PciTransport *transport,
+--- a/rtw/hal_rtw89/Rtw89LinuxBridge.hpp
++++ b/rtw/hal_rtw89/Rtw89LinuxBridge.hpp
+@@ -48,6 +48,8 @@
+ struct Rtw89LinuxContext {
+     typedef void (*ReceiveCallback)(void *, const uint8_t *, size_t,
+                                     int32_t, uint16_t, bool, bool, uint32_t, bool);
++    // true transfers the skb to the native queue; false leaves it to the bridge.
++    typedef bool (*ReceiveQueueCallback)(void *, void *, size_t);
+     typedef void (*TxResumeCallback)(void *);
+     volatile uint32_t coexState[7] {};
+     volatile uint64_t coexObservations {0};
+@@ -139,10 +141,14 @@
+     volatile uint32_t txReportAttempts;
+     void *nativeOwner;
+     ReceiveCallback receive;
++    ReceiveQueueCallback queueReceive;
+     void (*traceReceive)(void *, unsigned, const uint8_t *, size_t, unsigned);
+     TxResumeCallback txResume;
+ };
+ 
++// Native-gate consumer and ownership-only release for deferred receive buffers.
++void rtw89LinuxProcessReceivedFrame(Rtw89LinuxContext *, void *);
++void rtw89LinuxReleaseReceivedFrame(void *);
+ bool rtw89LinuxAttach(Rtw89PciTransport *transport,
+                       Rtw89LinuxContext *context);
+ void rtw89LinuxDetach(Rtw89PciTransport *transport,
+--- a/rtw/hal_rtw89/Rtw89NativeRxQueue.hpp
++++ b/rtw/hal_rtw89/Rtw89NativeRxQueue.hpp
+@@ -0,0 +1,101 @@
++/* SPDX-License-Identifier: GPL-2.0 OR BSD-3-Clause */
++#ifndef RTW89_NATIVE_RX_QUEUE_HPP
++#define RTW89_NATIVE_RX_QUEUE_HPP
++#include <stddef.h>
++#include <stdint.h>
++
++namespace Rtw89NativeRx {
++// A successful enqueue transfers storage ownership. The producer frees rejected
++// entries; the consumer/stop path frees accepted entries exactly once.
++struct Frame {
++    void *storage;
++    size_t length;
++    uint32_t epoch;
++};
++
++struct Counters {
++    uint64_t enqueued, drained, fullDrops, closedDrops, staleDrops, invalidDrops;
++    uint32_t highWater;
++    size_t highBytes;
++};
++
++// All methods require the caller's short queue lock. No allocation, protocol
++// processing or blocking workloop-gate acquisition is allowed under that lock.
++class Queue {
++public:
++    static constexpr unsigned capacity = 512;
++    static constexpr size_t byteLimit = 4 * 1024 * 1024;
++    void initialize() {
++        head = count = 0; bytes = 0; epoch = 1;
++        stopped = false; accepting = false;
++        txPending = unstallPending = statsPending = false;
++        counters = {};
++    }
++    bool resume() {
++        if (stopped) return false;
++        ++epoch; accepting = true; return true;
++    }
++    void pause() {
++        accepting = false; ++epoch;
++        txPending = unstallPending = false;
++    }
++    void stop() { pause(); stopped = true; statsPending = false; }
++    uint32_t generation() const { return epoch; }
++    bool active() const { return accepting && !stopped; }
++    bool push(const Frame &frame) {
++        if (!frame.storage || frame.length < 10 || frame.length > 65535) {
++            ++counters.invalidDrops; return false;
++        }
++        if (!active()) { ++counters.closedDrops; return false; }
++        if (frame.epoch != epoch) { ++counters.staleDrops; return false; }
++        if (count == capacity || frame.length > byteLimit - bytes) {
++            ++counters.fullDrops; return false;
++        }
++        frames[(head + count) % capacity] = frame;
++        ++count; bytes += frame.length; ++counters.enqueued;
++        if (count > counters.highWater) counters.highWater = count;
++        if (bytes > counters.highBytes) counters.highBytes = bytes;
++        return true;
++    }
++    bool pop(Frame &frame) {
++        if (!count) return false;
++        frame = frames[head]; frames[head] = {};
++        head = (head + 1) % capacity; --count; bytes -= frame.length;
++        return true;
++    }
++    bool current(const Frame &frame) const { return active() && frame.epoch == epoch; }
++    bool popStale(Frame &frame) {
++        if (!count || current(frames[head])) return false;
++        return pop(frame);
++    }
++    void noteDrained(bool current) {
++        if (current) ++counters.drained; else ++counters.staleDrops;
++    }
++    bool requestTx(bool unstall) {
++        if (!active()) return false;
++        txPending = true; unstallPending |= unstall; return true;
++    }
++    bool requestStats() {
++        if (stopped) return false;
++        statsPending = true; return true;
++    }
++    bool takeTx(bool &unstall) {
++        const bool pending = txPending; unstall = unstallPending;
++        txPending = unstallPending = false; return pending;
++    }
++    bool takeStats() { const bool value = statsPending; statsPending = false; return value; }
++    bool needsService() const { return !stopped && (count || txPending || statsPending); }
++    unsigned depth() const { return count; }
++    size_t queuedBytes() const { return bytes; }
++    const Counters &statistics() const { return counters; }
++private:
++    Frame frames[capacity] {};
++    unsigned head {0}, count {0};
++    size_t bytes {0};
++    uint32_t epoch {0};
++    bool stopped {true}, accepting {false};
++    bool txPending {false}, unstallPending {false}, statsPending {false};
++    Counters counters {};
++};
++}
++#endif
+--- a/rtw/hal_rtw89/RTWCore89NativeRx.inc
++++ b/rtw/hal_rtw89/RTWCore89NativeRx.inc
+@@ -0,0 +1,175 @@
++/* SPDX-License-Identifier: GPL-2.0 OR BSD-3-Clause */
++// Included after RTWCore89 and the native networking declarations. The same
++// implementation is exercised by the host ownership/concurrency tests.
++
++bool RTWCore89::initializeNativeRx()
++{
++    if (!nativeRxLock) nativeRxLock = IOSimpleLockAlloc();
++    if (!nativeRxLock) return false;
++    nativeRxQueue.initialize();
++    nativeRxEvent = IOInterruptEventSource::interruptEventSource(
++        this, nativeRxAction, nullptr);
++    if (!nativeRxEvent) return false;
++    if (getMainWorkLoop()->addEventSource(nativeRxEvent) != kIOReturnSuccess) {
++        nativeRxEvent->release(); nativeRxEvent = nullptr;
++        return false;
++    }
++    nativeRxEvent->enable();
++    return true;
++}
++
++// No native gate is acquired by the producer. A provider-less interrupt event
++// source is IOKit's supported asynchronous software-event mechanism. Notify
++// while holding only the short queue lock, so removal cannot race notification.
++bool RTWCore89::enqueueNativeRx(void *opaque, void *storage, size_t length)
++{
++    auto *owner = static_cast<RTWCore89 *>(opaque);
++    if (!owner || !owner->nativeRxLock) return false;
++    IOSimpleLockLock(owner->nativeRxLock);
++    Rtw89NativeRx::Frame frame = {storage, length, owner->nativeRxQueue.generation()};
++    const bool accepted = owner->nativeRxQueue.push(frame);
++    if (accepted && owner->nativeRxEvent)
++        owner->nativeRxEvent->interruptOccurred(nullptr, nullptr, 0);
++    IOSimpleLockUnlock(owner->nativeRxLock);
++    return accepted;
++}
++
++bool RTWCore89::resumeNativeRx()
++{
++    if (!nativeRxLock) return false;
++    IOSimpleLockLock(nativeRxLock);
++    const bool resumed = nativeRxEvent && nativeRxQueue.resume();
++    IOSimpleLockUnlock(nativeRxLock);
++    return resumed;
++}
++
++void RTWCore89::pauseNativeRx()
++{
++    if (!nativeRxLock) return;
++    IOSimpleLockLock(nativeRxLock);
++    nativeRxQueue.pause();
++    if (nativeRxEvent && nativeRxQueue.needsService())
++        nativeRxEvent->interruptOccurred(nullptr, nullptr, 0);
++    IOSimpleLockUnlock(nativeRxLock);
++    // Make room for the next power/MAC session before hardware is restarted.
++    // Purge only stale entries; even a concurrent resume cannot lose new data.
++    for (;;) {
++        Rtw89NativeRx::Frame frame = {};
++        IOSimpleLockLock(nativeRxLock);
++        const bool found = nativeRxQueue.popStale(frame);
++        if (found) nativeRxQueue.noteDrained(false);
++        IOSimpleLockUnlock(nativeRxLock);
++        if (!found) break;
++        rtw89LinuxReleaseReceivedFrame(frame.storage);
++    }
++}
++
++void RTWCore89::requestNativeTx(bool unstall)
++{
++    if (!nativeRxLock) return;
++    IOSimpleLockLock(nativeRxLock);
++    if (nativeRxQueue.requestTx(unstall) && nativeRxEvent)
++        nativeRxEvent->interruptOccurred(nullptr, nullptr, 0);
++    IOSimpleLockUnlock(nativeRxLock);
++}
++
++void RTWCore89::requestNativeRxStatistics()
++{
++    if (!nativeRxLock) return;
++    IOSimpleLockLock(nativeRxLock);
++    if (nativeRxQueue.requestStats() && nativeRxEvent)
++        nativeRxEvent->interruptOccurred(nullptr, nullptr, 0);
++    IOSimpleLockUnlock(nativeRxLock);
++}
++
++void RTWCore89::stopNativeRx()
++{
++    if (!nativeRxLock) return;
++    IOSimpleLockLock(nativeRxLock);
++    nativeRxQueue.stop();
++    auto *event = nativeRxEvent;
++    nativeRxEvent = nullptr;
++    IOSimpleLockUnlock(nativeRxLock);
++    // Removal waits for an active native drain to finish. Never hold the queue
++    // lock across removal; IRQ/NAPI producers only need that short lock.
++    if (event) {
++        event->disable();
++        if (event->getWorkLoop()) event->getWorkLoop()->removeEventSource(event);
++        event->release();
++    }
++    for (;;) {
++        Rtw89NativeRx::Frame frame = {};
++        IOSimpleLockLock(nativeRxLock);
++        const bool found = nativeRxQueue.pop(frame);
++        IOSimpleLockUnlock(nativeRxLock);
++        if (!found) break;
++        rtw89LinuxReleaseReceivedFrame(frame.storage);
++    }
++    // The lock outlives all producer callbacks. free() releases it only after
++    // transport teardown has joined the IRQ/NAPI callbacks.
++}
++
++void RTWCore89::nativeRxAction(OSObject *object, IOInterruptEventSource *, int)
++{
++    auto *owner = static_cast<RTWCore89 *>(object);
++    owner->drainNativeRx();
++}
++
++void RTWCore89::drainNativeRx()
++{
++    if (!getMainWorkLoop()->inGate()) {
++        __sync_fetch_and_add(&nativeRxGateViolations, 1);
++        return;
++    }
++    struct mbuf_list batch;
++    ml_init(&batch);
++    IOSimpleLockLock(nativeRxLock);
++    const uint32_t epoch = nativeRxQueue.generation();
++    IOSimpleLockUnlock(nativeRxLock);
++    nativeRxBatch = &batch;
++    for (unsigned n = 0; n < 64; ++n) {
++        Rtw89NativeRx::Frame frame = {};
++        IOSimpleLockLock(nativeRxLock);
++        const bool found = nativeRxQueue.generation() == epoch && nativeRxQueue.pop(frame);
++        const bool current = found && nativeRxQueue.current(frame);
++        if (found) nativeRxQueue.noteDrained(current);
++        IOSimpleLockUnlock(nativeRxLock);
++        if (!found) break;
++        if (current) {
++            // Decoding, key lookups, net80211 and reordering now share the
++            // native gate with lifecycle requests and protocol timers.
++            rtw89LinuxProcessReceivedFrame(&linuxContext, frame.storage);
++        } else {
++            rtw89LinuxReleaseReceivedFrame(frame.storage);
++        }
++    }
++    nativeRxBatch = nullptr;
++    ++nativeRxBatches;
++    IOSimpleLockLock(nativeRxLock);
++    const bool valid = nativeRxQueue.active() && nativeRxQueue.generation() == epoch;
++    bool unstall = false;
++    const bool tx = valid && nativeRxQueue.takeTx(unstall);
++    const bool statistics = nativeRxQueue.takeStats();
++    IOSimpleLockUnlock(nativeRxLock);
++    if (!ml_empty(&batch)) {
++        if (valid) {
++            nativeRxDelivered += batch.ml_len;
++            if_input(&sc.sc_ic.ic_if, &batch);
++            ++nativeRxFlushes;
++        } else {
++            nativeRxPurged += batch.ml_len;
++            ml_purge(&batch);
++        }
++    }
++    if (tx && valid && (sc.sc_flags & RTW89_FLAG_ENABLED)) {
++        if (unstall) ifq_clr_oactive(&sc.sc_ic.ic_if.if_snd);
++        start(&sc.sc_ic.ic_if);
++    }
++    if (statistics) publishNativeRxStatistics();
++    // Coalesce notifications and bound each action to 64 frames. Re-signal
++    // remaining work rather than synchronously waiting on a second workloop.
++    IOSimpleLockLock(nativeRxLock);
++    if (nativeRxEvent && nativeRxQueue.needsService())
++        nativeRxEvent->interruptOccurred(nullptr, nullptr, 0);
++    IOSimpleLockUnlock(nativeRxLock);
++}
+--- a/rtw80211/openbsd/sys/_mbuf.cpp
++++ b/rtw80211/openbsd/sys/_mbuf.cpp
+@@ -38,7 +38,9 @@
+     struct _ifnet *ifq = (struct _ifnet *)arg0;
+     struct mbuf_list *ml = (struct mbuf_list *)arg1;
+     
+-    MBUF_LIST_FOREACH(ml, m) {
++    // Detach before transferring ownership: inputPacket() may consume/free m
++    // or reuse its packet linkage. Never follow m after that handoff.
++    while ((m = ml_dequeue(ml)) != NULL) {
+         if (ifq->iface == NULL) {
+             panic("%s ifq->iface == NULL!!!\n", __FUNCTION__);
+             break;

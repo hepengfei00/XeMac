@@ -1,0 +1,586 @@
+# 0038: 265K external-DP source candidate, not hardware-validated.
+# Base: NvGfx 5a19a73f plus the 29 core/display patches in replay-validation.json.
+--- a/gpu/xegfx/shim/src/xnu/xg_kext.cpp
++++ b/gpu/xegfx/shim/src/xnu/xg_kext.cpp
+@@ -46,6 +46,8 @@
+ unsigned int xg_display_kms_kapi_version(void);
+ void xg_display_set_measured_timing(const void *data, unsigned int len);
+ void xg_display_set_boot_mode(unsigned int refresh_mhz, unsigned int width, unsigned int height);
++void xg_display_set_external_dp(int enabled);
++int xg_display_external_dp(void);
+ int xg_display_aux_probe(void);
+ unsigned int xg_display_edid_get(const void **data);
+ unsigned int xg_display_dpcd_get(const void **data);
+@@ -664,6 +666,11 @@
+ xg_timing_fallback(XeGfxDisplayNub *nub)
+ {
+ 	uint32_t w[XG_NVK5_TIMING_WORDS];
++	if (xg_display_external_dp()) {
++		strlcpy(gTimingSource, "kms-pending", sizeof(gTimingSource));
++		strlcpy(gTimingNote, "external DP waits for committed EDID timing; no embedded panel fallback", sizeof(gTimingNote));
++		return;
++	}
+ 	uint16_t handle = 0, type = 0;
+ 	uint8_t port = 0;
+ 	int child = xg_vbt_internal_child(&handle, &type, &port);
+@@ -848,6 +855,8 @@
+ 		}
+ 		IOLog("XeGfx: display nub: AUX EDID %u B, DPCD %u B\n", edid_len, dpcd_len);
+ 	}
++	if (xg_display_external_dp())
++		nub->setProperty("xegfx-external-dp", kOSBooleanTrue);
+ 	if (OSString *ver = OSString::withCString("0.5-aux-edid")) {
+ 		nub->setProperty("xegfx-display-version", ver);
+ 		ver->release();
+@@ -2343,6 +2352,7 @@
+ 			{
+ 				/* 1 = K1 read-only adoption, 2 = K2a: K1 + atomic check only, 3 = K2: + one 60 Hz commit; higher -> 3 */
+ 				uint32_t kms = xg_nvram_u32("xegfx-disp-kms");
++				xg_display_set_external_dp(xg_nvram_flag("xegfx-disp-external-dp") ? 1 : 0);
+ 				if (kms > 3)
+ 					kms = 3;
+ 				if (kms >= 1) {
+--- a/gpu/xkpi/src/i915/intel_bios.c
++++ b/gpu/xkpi/src/i915/intel_bios.c
+@@ -3209,7 +3209,9 @@
+ 		struct intel_bios_encoder_data *nd;
+ 
+ 		list_for_each_entry_safe(devdata, nd, &display->vbt.display_devices, node) {
+-			if (devdata->child.device_type & DEVICE_TYPE_INTERNAL_CONNECTOR)
++			if (xg_display_external_dp() ?
++			    xg_display_keep_dp_child(devdata->child.handle, devdata->child.dvo_port) :
++			    (devdata->child.device_type & DEVICE_TYPE_INTERNAL_CONNECTOR) != 0)
+ 				continue;
+ 			snprintf(line, sizeof(line), "kms: VBT child handle 0x%04x left to the firmware (not internal)",
+ 			    (unsigned)devdata->child.handle);
+--- a/gpu/xkpi/src/i915/xg_display_hook.c
++++ b/gpu/xkpi/src/i915/xg_display_hook.c
+@@ -19,6 +19,7 @@
+ #include "intel_display_types.h"
+ 
+ #include "xg_display_hook.h"
++#include "xegfx_external_dp_policy.h"
+ #include "xg_i915.h"
+ #include "xg_vm_xnu.h"
+ 
+@@ -28,6 +29,20 @@
+ extern int ml_get_interrupts_enabled(void);
+ 
+ #define XG_DISPLAY_DUMP_MAX	16384	/* K2a.3 overflowed 8 KB with the K1 readout + checks */
++
++static int gXgExternalDp;
++static int gXgDpChildIndex = -1;
++
++void xg_display_set_external_dp(int enabled)
++{
++	gXgExternalDp = enabled != 0;
++}
++
++int xg_display_external_dp(void)
++{
++	return gXgExternalDp;
++}
++
+ 
+ static int	gXgDispLevel = -1;
+ static char	gXgDispDump[XG_DISPLAY_DUMP_MAX];
+@@ -239,6 +254,7 @@
+ #define XG_KMS_PLANE_MAX_H		2400U
+ static unsigned int xg_kms_fixed_mode_timing(unsigned int n, unsigned int *out13);
+ static unsigned int xg_kms_boot_state(unsigned int *out13);
++static unsigned int xg_kms_current_timing(unsigned int *out13);
+ static unsigned int xg_kms_set_mode(void *ctx, unsigned int fb_index, unsigned int mode_id);
+ static unsigned int xg_kms_set_plane(void *ctx, unsigned int width, unsigned int height, unsigned int pitch);
+ static unsigned int xg_kms_cursor_image(void *ctx, const unsigned int *argb, unsigned int width, unsigned int height,
+@@ -462,6 +478,8 @@
+ 		return (xg_kms_boot_state(out13));
+ 	if (fb_index != 0)
+ 		return (XG_KMS_ERR_NOT_FOUND);
++	if (xg_display_external_dp())
++		return xg_kms_current_timing(out13);
+ 	if (!gXgMeasuredTimingValid)
+ 		return (XG_KMS_ERR_NOT_READY);
+ 	memcpy(out13, gXgMeasuredTiming, sizeof(gXgMeasuredTiming));
+@@ -478,6 +496,16 @@
+ xg_kms_vbt_u16(const unsigned char *c, unsigned int off)
+ {
+ 	return ((unsigned int)c[off] | ((unsigned int)c[off + 1] << 8));
++}
++
++int xg_display_keep_dp_child(unsigned int handle, unsigned int port)
++{
++	const unsigned char *c;
++
++	if (gXgDpChildIndex < 0)
++		return 0;
++	c = gXgChildData + gXgDpChildIndex * gXgChildStride;
++	return ((unsigned int)c[0] | ((unsigned int)c[1] << 8)) == handle && c[16] == port;
+ }
+ 
+ static unsigned int
+@@ -521,6 +549,7 @@
+ 	const unsigned char *c;
+ 	struct xg_kms_connector_info info = { .size = sizeof(info) };
+ 	unsigned int dt;
++	unsigned int raw_index = index;
+ 	unsigned int flags = 0;
+ 
+ 	(void)ctx;
+@@ -528,18 +557,25 @@
+ 		return (XG_KMS_ERR_BAD_ARGUMENT);
+ 	if (gXgChildCount <= 0 || gXgChildSize < XG_KMS_CHILD_BYTES)
+ 		return (XG_KMS_ERR_NOT_READY);
+-	if (index >= (unsigned int)gXgChildCount)
++	if (xg_display_external_dp()) {
++		if (index != 0)
++			return (XG_KMS_ERR_NOT_FOUND);
++		if (gXgDpChildIndex < 0)
++			return (XG_KMS_ERR_NOT_READY);
++		raw_index = (unsigned int)gXgDpChildIndex;
++	}
++	if (raw_index >= (unsigned int)gXgChildCount)
+ 		return (XG_KMS_ERR_NOT_FOUND);
+ 
+-	c = gXgChildData + index * gXgChildStride;
++	c = gXgChildData + raw_index * gXgChildStride;
+ 
+ 	info.index = index;
+-	info.child_index = index;
++	info.child_index = raw_index;
+ 	info.handle = xg_kms_vbt_u16(c, 0);
+ 	dt = xg_kms_vbt_u16(c, 2);
+ 	info.device_type = dt;
+ 	info.extended_type = xg_kms_vbt_u16(c, 30);
+-	info.type = xg_kms_conn_type(dt);
++	info.type = xg_display_external_dp() ? XG_KMS_CONN_DP : xg_kms_conn_type(dt);
+ 	info.port = xg_kms_vbt_u8(c, 16);
+ 	info.i2c_pin = xg_kms_vbt_u8(c, 17);
+ 	info.target_addr = xg_kms_vbt_u8(c, 18);
+@@ -1151,11 +1187,10 @@
+ 	return ((sum & 0xff) == 0);
+ }
+ 
+-int
+-xg_display_aux_probe(void)
++static int
++xg_display_aux_probe_child(const unsigned char *c)
+ {
+ 	static const unsigned int regions[XG_DISPLAY_DPCD_BYTES / 16] = { 0x000, 0x060, 0x070, 0x2200, 0x700 };
+-	const unsigned char *c = NULL;
+ 	char line[192];
+ 	unsigned int i, aux = 0, ext;
+ 	u32 ctl, psr, psr2;
+@@ -1166,14 +1201,6 @@
+ 	if (gXgAuxDisplay == NULL) {
+ 		snprintf(gXgAuxWhy, sizeof(gXgAuxWhy), "no display (VBT not parsed)");
+ 		return (-ENODEV);
+-	}
+-	/* the internal panel's child device decides the channel; nothing is assumed about the port */
+-	for (i = 0; i < (unsigned int)gXgChildCount; i++) {
+-		const unsigned char *k = gXgChildData + i * gXgChildStride;
+-		if (gXgChildSize >= 26 && (xg_kms_vbt_u16(k, 2) & (1U << 12))) {
+-			c = k;
+-			break;
+-		}
+ 	}
+ 	if (c != NULL)
+ 		aux = xg_kms_vbt_u8(c, 25);
+@@ -1182,13 +1209,13 @@
+ 	else if (aux == 0x10)		/* DP_AUX_B */
+ 		gXgAuxCtl = 0x64110;
+ 	else {
+-		snprintf(gXgAuxWhy, sizeof(gXgAuxWhy), "internal panel aux 0x%x not a combo-PHY channel (child %s)",
++		snprintf(gXgAuxWhy, sizeof(gXgAuxWhy), "display aux 0x%x not a supported combo-PHY channel (child %s)",
+ 		    aux, c ? "found" : "missing");
+ 		goto out;
+ 	}
+ 	psr = xg_aux_rd(XG_AUX_PSR_CTL);
+ 	psr2 = xg_aux_rd(XG_AUX_PSR2_CTL);
+-	if ((psr | psr2) & (1U << 31)) {
++	if (!xg_display_external_dp() && ((psr | psr2) & (1U << 31))) {
+ 		snprintf(gXgAuxWhy, sizeof(gXgAuxWhy), "PSR owns the AUX channel (psr 0x%08x psr2 0x%08x): not read", psr, psr2);
+ 		goto out;
+ 	}
+@@ -1231,6 +1258,53 @@
+ 		xg_disp_line(gXgAuxDisplay, line);
+ 	}
+ 	return (gXgEdidLen ? 0 : -EIO);
++}
++
++int
++xg_display_aux_probe(void)
++{
++	unsigned char edid[XG_DISPLAY_MAX_EDID], dpcd[XG_DISPLAY_DPCD_BYTES];
++	unsigned int i, len = 0, matches = 0;
++	int selected = -1;
++
++	gXgDpChildIndex = -1;
++	for (i = 0; i < (unsigned int)gXgChildCount; i++) {
++		const unsigned char *c = gXgChildData + i * gXgChildStride;
++		if (!xg_display_external_dp()) {
++			if (gXgChildSize >= 26 && (xg_kms_vbt_u16(c, 2) & (1U << 12)))
++				return xg_display_aux_probe_child(c);
++			continue;
++		}
++		if (gXgChildSize < 34 || !xg_dp_vbt_candidate(xg_kms_vbt_u16(c, 2), c[25],
++		    c[33] & 1U, c[33] & 2U))
++			continue;
++		if (xg_display_aux_probe_child(c) != 0)
++			continue;
++		if (matches++ == 0) {
++			selected = (int)i;
++			len = gXgEdidLen;
++			memcpy(edid, gXgEdid, len);
++			memcpy(dpcd, gXgDpcd, sizeof(dpcd));
++		}
++	}
++	if (xg_display_external_dp() && matches == 1) {
++		gXgDpChildIndex = selected;
++		gXgEdidLen = len;
++		gXgDpcdOk = 1;
++		memcpy(gXgEdid, edid, len);
++		memcpy(gXgDpcd, dpcd, sizeof(dpcd));
++		snprintf(gXgAuxWhy, sizeof(gXgAuxWhy), "external DP: unique EDID at VBT child %d", selected);
++		xg_disp_line(gXgAuxDisplay, gXgAuxWhy);
++		return 0;
++	}
++	gXgEdidLen = 0;
++	gXgDpcdOk = 0;
++	if (!xg_display_external_dp())
++		return xg_display_aux_probe_child(NULL);
++	snprintf(gXgAuxWhy, sizeof(gXgAuxWhy), "external DP: %u responding outputs; exactly one required", matches);
++	if (gXgAuxDisplay != NULL)
++		xg_disp_line(gXgAuxDisplay, gXgAuxWhy);
++	return -ENODEV;
+ }
+ 
+ unsigned int
+@@ -1259,6 +1333,7 @@
+ #include "intel_cdclk.h"
+ #include <drm/drm_atomic.h>
+ #include <drm/drm_atomic_uapi.h>
++#include <drm/drm_probe_helper.h>
+ #include <drm/display/drm_dp_helper.h>
+ 
+ static int gXgKmsLevel = -1;
+@@ -1392,6 +1467,36 @@
+ 	gXgBootReqH = height;
+ }
+ 
++/* External DP has EDID modes, not an eDP panel fixed-mode list. */
++static struct list_head *xg_kms_mode_list(struct intel_connector *conn)
++{
++	return xg_display_external_dp() ? &conn->base.modes : &conn->panel.fixed_modes;
++}
++
++static int xg_kms_mode_allowed(const struct drm_display_mode *m)
++{
++	return !xg_display_external_dp() || (m->status == MODE_OK && m->clock > 0 &&
++	    xg_dp_mode_accepted(m->hdisplay, m->vdisplay, drm_mode_vrefresh(m),
++	    (m->flags & (DRM_MODE_FLAG_INTERLACE | DRM_MODE_FLAG_DBLSCAN)) != 0));
++}
++
++static const struct drm_display_mode *xg_kms_preferred_mode(struct intel_connector *conn)
++{
++	const struct drm_display_mode *m, *best = NULL;
++
++	if (!xg_display_external_dp())
++		return intel_panel_preferred_fixed_mode(conn);
++	list_for_each_entry(m, &conn->base.modes, head) {
++		if (!xg_kms_mode_allowed(m))
++			continue;
++		if (best == NULL || m->hdisplay * m->vdisplay > best->hdisplay * best->vdisplay ||
++		    (m->hdisplay * m->vdisplay == best->hdisplay * best->vdisplay &&
++		    drm_mode_vrefresh(m) > drm_mode_vrefresh(best)))
++			best = m;
++	}
++	return best;
++}
++
+ /* K4: the fixed mode with the preferred raster at the saved refresh, and a desktop the plane can take; else NULL */
+ static const struct drm_display_mode *
+ xg_kms_boot_pick(struct intel_connector *edp, const struct drm_display_mode *pref, unsigned int *w, unsigned int *h)
+@@ -1405,7 +1510,9 @@
+ 	    (gXgBootReqW & 15U) != 0 || gXgBootReqW > 2U * (unsigned int)pref->hdisplay ||
+ 	    gXgBootReqH > 2U * (unsigned int)pref->vdisplay)
+ 		return (NULL);
+-	list_for_each_entry(m, &edp->panel.fixed_modes, head) {
++	list_for_each_entry(m, xg_kms_mode_list(edp), head) {
++		if (!xg_kms_mode_allowed(m))
++			continue;
+ 		const unsigned int mhz = (unsigned int)drm_mode_vrefresh(m) * 1000U;
+ 
+ 		if (m->hdisplay != pref->hdisplay || m->vdisplay != pref->vdisplay)
+@@ -1456,7 +1563,9 @@
+ 	gXgKmsEdp = edp;
+ 	gXgKmsFb = fb;
+ 	gXgKmsModeCount = 0;
+-	list_for_each_entry(m, &edp->panel.fixed_modes, head) {
++	list_for_each_entry(m, xg_kms_mode_list(edp), head) {
++		if (!xg_kms_mode_allowed(m))
++			continue;
+ 		if (gXgKmsModeCount >= XG_KMS_MAX_FIXED_MODES)
+ 			break;
+ 		if (m == pref)
+@@ -1504,11 +1613,27 @@
+ 	return (xg_kms_timing_ok(out13) ? XG_KMS_OK : XG_KMS_ERR_NOT_FOUND);
+ }
+ 
++static unsigned int
++xg_kms_current_timing(unsigned int *out13)
++{
++	if (xg_display_kms_level() < 3)
++		return XG_KMS_ERR_UNSUPPORTED;
++	if (!READ_ONCE(gXgKmsModesReady))
++		return XG_KMS_ERR_NOT_READY;
++	rmb();
++	if (gXgKmsModeCurrent < 0)
++		return XG_KMS_ERR_NOT_FOUND;
++	return xg_kms_fixed_mode_timing((unsigned int)gXgKmsModeCurrent, out13);
++}
++
+ /* J1: can one pipe carry fixed mode m with a w x h desktop on its plane?  The same arithmetic i915 checks */
+ static int
+ xg_kms_needs_joiner(const struct drm_display_mode *m, unsigned int w, unsigned int h)
+ {
+ 	unsigned long long rate = (unsigned long long)m->clock;
++
++	if (xg_display_external_dp())
++		return 0;
+ 
+ 	if (m->clock > gXgKmsDisplay->cdclk.max_dotclk_freq)
+ 		return (1);
+@@ -1780,7 +1905,7 @@
+ 	gXgKmsEdp->force_joined_pipes = xg_kms_needs_joiner(m, gXgKmsFb->width, gXgKmsFb->height) ? 2 : 0;
+ 	snprintf(tag, sizeof(tag), "K3 %dx%d@%d/8bpc%s%s", m->hdisplay, m->vdisplay, hz, hz > 60 ? "+dsc" : "",
+ 	    gXgKmsEdp->force_joined_pipes ? "+joiner" : "");
+-	xg_kms_check_one(gXgKmsDisplay, gXgKmsCrtc, gXgKmsEdp, gXgKmsFb, m, hz > 60, 8, true, tag);
++	xg_kms_check_one(gXgKmsDisplay, gXgKmsCrtc, gXgKmsEdp, gXgKmsFb, m, !xg_display_external_dp() && hz > 60, 8, true, tag);
+ 	xg_kms_update_joiner();
+ 	cs = to_intel_crtc_state(gXgKmsCrtc->base.state);
+ 	if (gXgKmsCommitted == 1 && cs->hw.adjusted_mode.crtc_clock == m->clock) {
+@@ -1978,7 +2103,7 @@
+ 			snprintf(tag, sizeof(tag), "J1 %dx%d@%d desktop %ux%u%s", m->hdisplay, m->vdisplay, hz, width, height,
+ 			    join ? "+joiner" : "");
+ 			gXgKmsLastCommitRet = -EINVAL;
+-			xg_kms_check_one(gXgKmsDisplay, gXgKmsCrtc, gXgKmsEdp, fb, m, hz > 60, 8, true, tag);
++			xg_kms_check_one(gXgKmsDisplay, gXgKmsCrtc, gXgKmsEdp, fb, m, !xg_display_external_dp() && hz > 60, 8, true, tag);
+ 			ret = gXgKmsLastCommitRet;
+ 		} else
+ 			ret = xg_kms_plane_commit(fb);
+@@ -2586,6 +2711,37 @@
+ 		if (edp == NULL && dc->connector_type == DRM_MODE_CONNECTOR_eDP)
+ 			edp = to_intel_connector(dc);
+ 	drm_connector_list_iter_end(&it);
++	if (xg_display_external_dp()) {
++		unsigned int connected = 0, active_count = 0;
++		active = NULL;
++		edp = NULL;
++		for_each_intel_crtc(display->drm, crtc)
++			if (to_intel_crtc_state(crtc->base.state)->hw.active)
++				active_count++;
++		mutex_lock(&display->drm->mode_config.mutex);
++		drm_connector_list_iter_begin(display->drm, &it);
++		drm_for_each_connector_iter(dc, &it) {
++			if (dc->connector_type != DRM_MODE_CONNECTOR_DisplayPort)
++				continue;
++			if (to_intel_connector(dc)->mst_port != NULL ||
++			    drm_helper_probe_single_connector_modes(dc, 3840, 2160) <= 0 ||
++			    dc->status != connector_status_connected || dc->state == NULL || dc->state->crtc == NULL)
++				continue;
++			if (intel_attached_dp(to_intel_connector(dc))->is_mst)
++				continue;
++			connected++;
++			edp = to_intel_connector(dc);
++			active = to_intel_crtc(dc->state->crtc);
++		}
++		drm_connector_list_iter_end(&it);
++		mutex_unlock(&display->drm->mode_config.mutex);
++		/* The inherited accel flips pipe A directly; do not drive another pipe by guessing. */
++		if (connected != 1 || active_count != 1 || active == NULL || active->pipe != PIPE_A ||
++		    !to_intel_crtc_state(active->base.state)->hw.active || xg_kms_preferred_mode(edp) == NULL) {
++			xg_disp_line(display, "kms: external DP requires one firmware-active pipe-A SST output and valid EDID modes");
++			return;
++		}
++	}
+ 	if (active == NULL || edp == NULL) {
+ 		xg_disp_line(display, active == NULL ? "kms: check skipped: no active pipe" : "kms: check skipped: no eDP");
+ 		return;
+@@ -2593,10 +2749,11 @@
+ 	xg_kms_diag(display, edp);
+ 
+ 	/* the adapter's scanout geometry; K2 commits with this, the accel keeps writing PLANE_SURF over it */
+-	cmd.width = 2560;
+-	cmd.height = 1600;
++	m = xg_display_external_dp() ? xg_kms_preferred_mode(edp) : NULL;
++	cmd.width = m != NULL ? (unsigned int)m->hdisplay : 2560U;
++	cmd.height = m != NULL ? (unsigned int)m->vdisplay : 1600U;
+ 	cmd.pixel_format = DRM_FORMAT_XRGB8888;
+-	cmd.pitches[0] = 2560 * 4;
++	cmd.pitches[0] = cmd.width * 4U;
+ 	/* sized for the largest scaled desktop (A1), so every placeholder size is a framebuffer over the same pages */
+ 	obj = i915_gem_object_create_shmem(i915, PAGE_ALIGN(XG_KMS_PLANE_MAX_W * 4U * XG_KMS_PLANE_MAX_H));
+ 	if (IS_ERR(obj))
+@@ -2629,7 +2786,9 @@
+ 	xg_disp_line(display, edp->panel.vbt.drrs_type == DRRS_TYPE_SEAMLESS ?
+ 	    "kms: VBT DRRS seamless -> off for the K2a.3 checks" : "kms: VBT DRRS not seamless");
+ 	edp->panel.vbt.drrs_type = DRRS_TYPE_NONE;
+-	list_for_each_entry(m, &edp->panel.fixed_modes, head) {
++	list_for_each_entry(m, xg_kms_mode_list(edp), head) {
++		if (!xg_kms_mode_allowed(m))
++			continue;
+ 		if (xg_display_kms_level() != 2)
+ 			break;
+ 		int hz = drm_mode_vrefresh(m);
+@@ -2638,7 +2797,7 @@
+ 		xg_kms_check_one(display, active, edp, fb, m, false, 0, false, tag);
+ 		snprintf(tag, sizeof(tag), "%dx%d@%d/8bpc", m->hdisplay, m->vdisplay, hz);
+ 		xg_kms_check_one(display, active, edp, fb, m, false, 8, false, tag);
+-		if (hz > 60) {
++		if (!xg_display_external_dp() && hz > 60) {
+ 			snprintf(tag, sizeof(tag), "%dx%d@%d/8bpc+dsc", m->hdisplay, m->vdisplay, hz);
+ 			xg_kms_check_one(display, active, edp, fb, m, true, 8, false, tag);
+ 		}
+@@ -2653,7 +2812,7 @@
+ 	 * modeset at 60 Hz).  Nothing commits without a placeholder fb: the plane would come back off.
+ 	 */
+ 	if (xg_display_kms_level() >= 3) {
+-		m = intel_panel_preferred_fixed_mode(edp);
++		m = xg_kms_preferred_mode(edp);
+ 		if (fb == NULL || m == NULL)
+ 			xg_disp_line(display, fb == NULL ? "kms: commit skipped: no placeholder fb" :
+ 			    "kms: commit skipped: no fixed mode");
+@@ -2688,7 +2847,7 @@
+ 					snprintf(tag, sizeof(tag), "K4 %dx%d@%d desktop %ux%u%s", want->hdisplay, want->vdisplay, hz,
+ 					    bw, bh, edp->force_joined_pipes ? "+joiner" : "");
+ 					gXgKmsLastCommitRet = -EINVAL;
+-					xg_kms_check_one(display, active, edp, bfb, want, hz > 60, 8, true, tag);
++					xg_kms_check_one(display, active, edp, bfb, want, !xg_display_external_dp() && hz > 60, 8, true, tag);
+ 					if (gXgKmsLastCommitRet == 0) {
+ 						if (bfb != fb) {
+ 							drm_framebuffer_put(fb);
+--- a/gpu/xkpi/src/i915/xg_display_hook.h
++++ b/gpu/xkpi/src/i915/xg_display_hook.h
+@@ -13,6 +13,9 @@
+ struct intel_display;
+ 
+ int xg_display_disp_level(void);
++void xg_display_set_external_dp(int enabled);
++int xg_display_external_dp(void);
++int xg_display_keep_dp_child(unsigned int handle, unsigned int port);
+ void xg_display_dump_vbt(struct intel_display *display);
+ void xg_display_dump_bios(struct intel_display *display);
+ void xg_display_note(struct intel_display *display, const char *line);
+--- a/kexts/NVRMAGDC/nvrm-agdc.cpp
++++ b/kexts/NVRMAGDC/nvrm-agdc.cpp
+@@ -152,15 +152,8 @@
+         OSObject *o = slot[i] ? slot[i]->copyProperty("NVRMTiming") : NULL; OSData *d = OSDynamicCast(OSData, o);
+         if (d) { have = true; tBytes = d->getLength(); bzero(t[i], sizeof t[i]); if (tBytes == sizeof t[i]) memcpy(t[i], d->getBytesNoCopy(), sizeof t[i]); }
+         OSSafeReleaseNULL(o);
+-#ifdef NMX_XEGFX
+-        // Apple's boot framebuffer has no timing record: the built-in panel's native mode, as NVRMFB publishes it for
+-        // the same panel in Discrete (N-182 NVRMTiming), which the firmware also sets on the iGPU
+-        if (!have) {
+-            static const uint32_t panel[NVK5_TIMING_WORDS] = { NVK5_TIMING_TAG, 782710000u, 2560, 2640, 2672, 2720,
+-                                                               1600, 1670, 1678, 1744, 165000, 0, 1 };
+-            memcpy(t[i], panel, sizeof panel); have = true; tBytes = sizeof panel;
+-        }
+-#endif
++        // No fabricated panel timing: wait until the framebuffer publishes NVRMTiming.
++
+         h[i].t = have ? t[i] : NULL; h[i].tBytes = tBytes;
+     }
+     int why = 0; int32_t idx = -1;
+--- a/kexts/XeGfxDisplay/src/XeGfxDisplay.cpp
++++ b/kexts/XeGfxDisplay/src/XeGfxDisplay.cpp
+@@ -344,6 +344,8 @@
+         fConn.headMask      = 1u << fHead;
+         if (info.flags & XEGFX_CONN_FLAG_INTERNAL) {
+             fConn.caps |= XEGFX_CONN_CAP_INTERNAL;
++        }
++        if ((fConn.caps & XEGFX_CONN_CAP_INTERNAL) || info.type == XEGFX_CONN_DP) {
+             fOwnsHead  = true;
+             fIsConsole = true;
+         }
+@@ -816,8 +818,8 @@
+     m->info.maxDepthIndex = 0;
+     m->info.flags         = kDisplayModeValidFlag;
+     /* EDID base block: 34 x 22 cm.  The 13 words carry no physical size. */
+-    m->info.imageWidth    = 340;
+-    m->info.imageHeight   = 220;
++    m->info.imageWidth    = 0;
++    m->info.imageHeight   = 0;  /* Physical dimensions come from the attached display's EDID. */
+ 
+     /* Long-word-per-pixel 32bpp RGB, same encoding getPixelInformation()
+      * reports for a registered mode. */
+@@ -958,7 +960,8 @@
+     }
+     if (next > fMeasuredModeCount)
+         fMeasuredModeCount = next;
+-    fK3 = fK3Count > 0;
++    /* A single 4K60 EDID mode still supports scaler/HiDPI; extra refresh rates are optional. */
++    fK3 = fK3Count > 0 || (haveNative && fConn.type == XEGFX_CONN_DP);
+     setProperty("XeGfxK3Modes", (unsigned long long)fK3Count, 32);
+ }
+ 
+@@ -3515,7 +3518,7 @@
+      * starting unaccelerated and restarting later.  XeGfxIntelFB returns true
+      * here for the same reason.
+      */
+-    fIsConsole = (fConn.caps & XEGFX_CONN_CAP_INTERNAL) != 0;
++    fIsConsole = (fConn.caps & XEGFX_CONN_CAP_INTERNAL) != 0 || fConn.type == XEGFX_CONN_DP;
+ 
+     if (!IOFramebuffer::start(provider))
+         return false;
+@@ -3769,7 +3772,21 @@
+      * (getTiming/getConnectorInfo).  The scanout allocator is not called
+      * unless the M3d expose arm is chosen and the preflight is green.
+      */
+-    bool kapiOk = readKapi(provider) && kapiInit();
++    bool kapiOk = readKapi(provider);
++    if (kapiOk && provider->getProperty("xegfx-external-dp") == kOSBooleanTrue) {
++        struct XeGfxKmsPanelTiming current;
++        uint32_t rc = XEGFX_ERR_NOT_READY;
++        for (uint32_t n = 0; n < 120; n++) {
++            bzero(&current, sizeof current);
++            rc = fKapi->getTiming(fCtx, 0, &current);
++            if (rc != XEGFX_ERR_NOT_READY)
++                break;
++            IOSleep(250);
++        }
++        kapiOk = rc == XEGFX_OK && buildMeasuredModeTable(&current, sizeof current);
++        XLOG("external DP: committed native timing rc 0x%x, ready %d", rc, kapiOk ? 1 : 0);
++    }
++    kapiOk = kapiOk && kapiInit();
+     if (kapiOk) {
+         loadNubEdid(provider);
+         buildK3Modes();
+--- /dev/null
++++ b/gpu/xkpi/include/xegfx_external_dp_policy.h
+@@ -0,0 +1,26 @@
++/* SPDX-License-Identifier: MIT */
++#ifndef XEGFX_EXTERNAL_DP_POLICY_H
++#define XEGFX_EXTERNAL_DP_POLICY_H
++
++/* Only the combo-PHY AUX registers already supported by ArrowWhatever. */
++static inline unsigned int xg_dp_aux_ctl(unsigned int aux)
++{
++	return aux == 0x40U ? 0x64010U : aux == 0x10U ? 0x64110U : 0;
++}
++
++static inline int xg_dp_vbt_candidate(unsigned int type, unsigned int aux,
++    unsigned int type_c, unsigned int thunderbolt)
++{
++	return (type & (1U << 2)) && !(type & (1U << 12)) &&
++	    !type_c && !thunderbolt && xg_dp_aux_ctl(aux) != 0;
++}
++
++/* Initial external-DP scope: progressive EDID modes through 4K60 SDR. */
++static inline int xg_dp_mode_accepted(unsigned int w, unsigned int h,
++    unsigned int hz, int interlaced_or_doublescan)
++{
++	return w >= 640U && w <= 3840U && h >= 400U && h <= 2160U &&
++	    !(w & 15U) && hz >= 24U && hz <= 60U && !interlaced_or_doublescan;
++}
++
++#endif

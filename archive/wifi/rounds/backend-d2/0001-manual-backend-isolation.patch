@@ -1,0 +1,594 @@
+--- a/include/AirportRTWDiagnostics.h
++++ b/include/AirportRTWDiagnostics.h
+@@ -1,11 +1,17 @@
+ /* SPDX-License-Identifier: GPL-2.0 OR BSD-3-Clause */
+ #ifndef AIRPORTRTW_DIAGNOSTICS_H
+ #define AIRPORTRTW_DIAGNOSTICS_H
++#define WTL_BACKEND_ISOLATION 1
+ #ifndef RTW_AWDL_STARTUP_PROBE
+ #define RTW_AWDL_STARTUP_PROBE 0
+ #endif
+ #if defined(DEBUG) && DEBUG
+ #define RTW_DIAGNOSTICS 1
++#define RTW_LOG(...) IOLog(__VA_ARGS__)
++#define RTW_DIAGNOSTIC(...) do { __VA_ARGS__; } while (0)
++#elif 1 /* Local Release stage diagnostics, without DEBUG or AWDL probe. */
++// Keep Release behavior and AWDL startup probing off; expose stage markers only.
++#define RTW_DIAGNOSTICS 0
+ #define RTW_LOG(...) IOLog(__VA_ARGS__)
+ #define RTW_DIAGNOSTIC(...) do { __VA_ARGS__; } while (0)
+ #else
+--- a/rtw/Info.plist
++++ b/rtw/Info.plist
+@@ -1,92 +1,61 @@
+-<?xml version="1.0" encoding="UTF-8"?>
+-<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+-<plist version="1.0">
+-<dict>
+-	<key>CFBundleDevelopmentRegion</key>
+-	<string>$(DEVELOPMENT_LANGUAGE)</string>
+-	<key>CFBundleExecutable</key>
+-	<string>$(EXECUTABLE_NAME)</string>
+-	<key>CFBundleIdentifier</key>
+-	<string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
+-	<key>CFBundleInfoDictionaryVersion</key>
+-	<string>6.0</string>
+-	<key>CFBundleName</key>
+-	<string>$(PRODUCT_NAME)</string>
+-	<key>CFBundlePackageType</key>
+-	<string>$(PRODUCT_BUNDLE_PACKAGE_TYPE)</string>
+-	<key>CFBundleShortVersionString</key>
+-	<string>$(MODULE_VERSION)</string>
+-	<key>CFBundleVersion</key>
+-	<string>$(MODULE_VERSION)</string>
+-	<key>IOKitPersonalities</key>
+-	<dict>
+-		<key>RTWCore</key>
+-		<dict>
+-			<key>CFBundleIdentifier</key>
+-			<string>com.senmiko.RTWCore</string>
+-			<key>IOClass</key>
++<?xml version="1.0" encoding="UTF-8"?>
++<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
++<plist version="1.0">
++<dict>
++	<key>CFBundleDevelopmentRegion</key>
++	<string>$(DEVELOPMENT_LANGUAGE)</string>
++	<key>CFBundleExecutable</key>
++	<string>$(EXECUTABLE_NAME)</string>
++	<key>CFBundleIdentifier</key>
++	<string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
++	<key>CFBundleInfoDictionaryVersion</key>
++	<string>6.0</string>
++	<key>CFBundleName</key>
++	<string>$(PRODUCT_NAME)</string>
++	<key>CFBundlePackageType</key>
++	<string>$(PRODUCT_BUNDLE_PACKAGE_TYPE)</string>
++	<key>CFBundleShortVersionString</key>
++	<string>$(MODULE_VERSION)</string>
++	<key>CFBundleVersion</key>
++	<string>$(MODULE_VERSION)</string>
++	<key>IOKitPersonalities</key>
++	<dict>
++		<key>RTWCore</key>
++		<dict>
++			<key>CFBundleIdentifier</key>
++			<string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
++			<key>IOClass</key>
+ 			<string>RTWEthernetController</string>
+-			<key>IOMatchCategory</key>
+-			<string>IODefaultMatchCategory</string>
+-			<key>IOPCIPrimaryMatch</key>
+-			<string>0x885210ec 0xa85a10ec 0xb85210ec 0xb85b10ec 0xb85110ec 0xb52010ec 0xc85210ec 0x892210ec 0x892b10ec 0xc82210ec 0xc82f10ec 0xb82210ec 0xc82110ec 0xb82110ec 0xd72310ec 0x881310ec</string>
+-			<key>IOProbeScore</key>
+-			<integer>2000</integer>
+-			<key>IOProviderClass</key>
+-			<string>IOPCIDevice</string>
+-			<key>IOUserClientClass</key>
+-			<string>RTWNetworkUserClient</string>
+-			<key>WiFiConfig</key>
+-			<dict>
+-				<key>WiFi_1</key>
+-				<dict>
+-					<key>password</key>
+-					<string>zxyssdt112233</string>
+-					<key>ssid</key>
+-					<string>ssdt</string>
+-				</dict>
+-				<key>WiFi_2</key>
+-				<dict>
+-					<key>password</key>
+-					<string>zxyssdt112233</string>
+-					<key>ssid</key>
+-					<string>ssdt_5G</string>
+-				</dict>
+-				<key>WiFi_3</key>
+-				<dict>
+-					<key>password</key>
+-					<string></string>
+-					<key>ssid</key>
+-					<string>Redmi</string>
+-				</dict>
+-				<key>WiFi_4</key>
+-				<dict>
+-					<key>password</key>
+-					<string>9utc5c5f</string>
+-					<key>ssid</key>
+-					<string>CMCC-KtG6</string>
+-				</dict>
+-			</dict>
+-		</dict>
+-	</dict>
+-	<key>NSHumanReadableCopyright</key>
+-	<string>Copyright © 2020 钟先耀. All rights reserved.</string>
+-	<key>OSBundleLibraries</key>
+-	<dict>
+-		<key>com.apple.iokit.IONetworkingFamily</key>
+-		<string>1.5.0</string>
+-		<key>com.apple.iokit.IOPCIFamily</key>
+-		<string>1.7</string>
+-		<key>com.apple.kpi.bsd</key>
+-		<string>8.10.0</string>
+-		<key>com.apple.kpi.iokit</key>
+-		<string>8.10.0</string>
+-		<key>com.apple.kpi.libkern</key>
+-		<string>8.10.0</string>
+-		<key>com.apple.kpi.mach</key>
+-		<string>8.10.0</string>
+-	</dict>
+-	<key>OSBundleRequired</key>
+-	<string>Network-Root</string>
+-</dict>
+-</plist>
++			<key>IOMatchCategory</key>
++			<string>IODefaultMatchCategory</string>
++			<key>IOPCIPrimaryMatch</key>
++			<string>0x892210ec</string>
++			<key>IOProbeScore</key>
++			<integer>2000</integer>
++			<key>IOProviderClass</key>
++			<string>IOPCIDevice</string>
++			<key>WTLBackendManualPowerOnly</key>
++			<true/>
++		</dict>
++	</dict>
++	<key>NSHumanReadableCopyright</key>
++	<string>Copyright © 2020 钟先耀. All rights reserved.</string>
++	<key>OSBundleLibraries</key>
++	<dict>
++		<key>com.apple.iokit.IONetworkingFamily</key>
++		<string>1.5.0</string>
++		<key>com.apple.iokit.IOPCIFamily</key>
++		<string>1.7</string>
++		<key>com.apple.kpi.bsd</key>
++		<string>8.10.0</string>
++		<key>com.apple.kpi.iokit</key>
++		<string>8.10.0</string>
++		<key>com.apple.kpi.libkern</key>
++		<string>8.10.0</string>
++		<key>com.apple.kpi.mach</key>
++		<string>8.10.0</string>
++	</dict>
++	<key>OSBundleRequired</key>
++	<string>Network-Root</string>
++</dict>
++</plist>
+--- a/rtw/RTWEthernetController.cpp
++++ b/rtw/RTWEthernetController.cpp
+@@ -14,6 +14,11 @@
+ #include "RTWEthernetController.hpp"
+ #include <HAL/RealtekHalFactory.hpp>
+ #include <linux/types.h>
++#ifdef WTL_BACKEND_ISOLATION
++#include "hal_rtw89/RTWCore89.hpp"
++#include <IOKit/IOUserClient.h>
++#include "RTWBackendIsolation.inc"
++#endif
+ #include <linux/kernel.h>
+ 
+ #include <IOKit/IOInterruptController.h>
+@@ -74,6 +79,10 @@
+         return NULL;
+     }
+     if ((fHalService = createRealtekHal(device))) {
++#ifdef WTL_BACKEND_ISOLATION
++        // The selected HAL owns MSI/MSI-X and interrupt-source setup.
++        return this;
++#endif
+         device->findPCICapability(PCI_CAP_ID_MSIX, &msixCap);
+         if (msixCap) {
+             pciMsiXClearAndSet(device, msixCap, PCI_MSIX_FLAGS_ENABLE, 0);
+@@ -333,7 +342,13 @@
+         releaseAll();
+         return false;
+     }
+-    if (!attachInterface((IONetworkInterface **)&fNetIf, true)) {
++    if (!attachInterface((IONetworkInterface **)&fNetIf,
++#ifdef WTL_BACKEND_ISOLATION
++                         false
++#else
++                         true
++#endif
++                         )) {
+         XYLog("attach to interface fail\n");
+         fHalService->detach(pciNub);
+         super::stop(pciNub);
+@@ -357,6 +372,19 @@
+         return false;
+     }
+     fWatchdogWorkLoop->addEventSource(watchdogTimer);
++#ifdef WTL_BACKEND_ISOLATION
++    backendPowerTimer = IOTimerEventSource::timerEventSource(this, &RTWEthernetController::backendPowerAction);
++    if (!backendPowerTimer || fWatchdogWorkLoop->addEventSource(backendPowerTimer) != kIOReturnSuccess)
++        return false;
++    backendPowerTimer->enable();
++    setProperty("WTLBackendBuild", "2.3.1-backend-isolation-1");
++    setProperty("WTLBackendState", "attached-not-powered");
++    setProperty("WTLBackendPublishesNetworkInterface", false);
++    // Keep the configured Ethernet interface private: no BSD attachment,
++    // automatic enable, saved-network lookup, or native IO80211 user client.
++    registerService();
++    return true;
++#endif
+     setLinkStatus(kIONetworkLinkValid);
+     OSObject *wifiEntryObject = NULL;
+     OSDictionary *wifiEntry = NULL;
+@@ -452,6 +480,9 @@
+ 
+ void RTWEthernetController::stop(IOService *provider)
+ {
++#ifdef WTL_BACKEND_ISOLATION
++    stopBackendPowerTimer();
++#endif
+     XYLog("%s\n", __FUNCTION__);
+     struct _ifnet *ifp = &fHalService->get80211Controller()->ic_ac.ac_if;
+     super::stop(provider);
+@@ -463,8 +494,29 @@
+     releaseAll();
+ }
+ 
++#ifdef WTL_BACKEND_ISOLATION
++void RTWEthernetController::stopBackendPowerTimer()
++{
++    __atomic_store_n(&backendStopping, true, __ATOMIC_RELEASE);
++    // Do not hold the network workloop gate while waiting for hardware work.
++    // A queued callback must run to retire its busy state before cancellation.
++    while (!__sync_bool_compare_and_swap(&backendBusy, 0, 2)) {
++        if (__atomic_load_n(&backendBusy, __ATOMIC_ACQUIRE) == 2) break;
++        IOSleep(1);
++    }
++    if (backendPowerTimer) {
++        backendPowerTimer->cancelTimeout();
++        if (fWatchdogWorkLoop) fWatchdogWorkLoop->removeEventSource(backendPowerTimer);
++        OSSafeReleaseNULL(backendPowerTimer);
++    }
++}
++#endif
++
+ void RTWEthernetController::releaseAll()
+ {
++#ifdef WTL_BACKEND_ISOLATION
++    stopBackendPowerTimer();
++#endif
+     if (fHalService) {
+         fHalService->release();
+         fHalService = NULL;
+@@ -502,6 +554,9 @@
+ 
+ IOReturn RTWEthernetController::enable(IONetworkInterface *netif)
+ {
++#ifdef WTL_BACKEND_ISOLATION
++    return kIOReturnNotReady; // Hardware commands are explicit and asynchronous.
++#endif
+     XYLog("%s\n", __FUNCTION__);
+     super::enable(netif);
+     _fCommandGate->enable();
+@@ -513,6 +568,9 @@
+ 
+ IOReturn RTWEthernetController::disable(IONetworkInterface *netif)
+ {
++#ifdef WTL_BACKEND_ISOLATION
++    return kIOReturnNotReady; // Hardware commands are explicit and asynchronous.
++#endif
+     XYLog("%s\n", __FUNCTION__);
+     super::disable(netif);
+     watchdogTimer->cancelTimeout();
+--- a/rtw/RTWEthernetController.hpp
++++ b/rtw/RTWEthernetController.hpp
+@@ -12,6 +12,7 @@
+ * GNU General Public License for more details.
+ */
+ #include <compat.h>
++#include <AirportRTWDiagnostics.h>
+ #include <linux/kernel.h>
+ 
+ #include <IOKit/network/IOEthernetController.h>
+@@ -76,6 +77,15 @@
+                                     IOService *   policyMaker) override;
+     virtual IOReturn setWakeOnMagicPacket( bool active ) override;
+ 
++#ifdef WTL_BACKEND_ISOLATION
++    IOReturn setProperties(OSObject *properties) override;
++    void stopBackendPowerTimer();
++    static void backendPowerAction(OSObject *, IOTimerEventSource *);
++    IOTimerEventSource *backendPowerTimer {nullptr};
++    volatile UInt32 backendBusy {0};
++    bool backendRequestedPower {false};
++    bool backendStopping {false};
++#endif
+     void releaseAll();
+     void joinSSID(const char *ssid, const char *pwd);
+     void associateSSID(const char *ssid, const char *pwd);
+--- /dev/null
++++ b/rtw/RTWBackendIsolation.inc
+@@ -0,0 +1,45 @@
++/* SPDX-License-Identifier: GPL-2.0-or-later */
++// Diagnostic-only entry point. No network interface is published by this build.
++IOReturn RTWEthernetController::setProperties(OSObject *properties)
++{
++    if (IOUserClient::clientHasPrivilege(current_task(), kIOClientPrivilegeAdministrator) != kIOReturnSuccess)
++        return kIOReturnNotPrivileged;
++    auto *dictionary = OSDynamicCast(OSDictionary, properties);
++    if (!dictionary || dictionary->getCount() != 1)
++        return kIOReturnBadArgument;
++    auto *command = OSDynamicCast(OSString, dictionary->getObject("WTLBackendCommand"));
++    if (!command || (!command->isEqualTo("power-on") && !command->isEqualTo("power-off")))
++        return kIOReturnBadArgument;
++    if (__atomic_load_n(&backendStopping, __ATOMIC_ACQUIRE) || !backendPowerTimer)
++        return kIOReturnNotReady;
++    if (!__sync_bool_compare_and_swap(&backendBusy, 0, 1))
++        return kIOReturnBusy;
++    if (__atomic_load_n(&backendStopping, __ATOMIC_ACQUIRE)) {
++        __sync_lock_release(&backendBusy);
++        return kIOReturnNotReady;
++    }
++    backendRequestedPower = command->isEqualTo("power-on");
++    setProperty("WTLBackendState", backendRequestedPower ? "power-on-queued" : "power-off-queued");
++    __sync_synchronize();
++    backendPowerTimer->setTimeoutMS(1);
++    return kIOReturnSuccess;
++}
++
++void RTWEthernetController::backendPowerAction(OSObject *object, IOTimerEventSource *)
++{
++    auto *self = OSDynamicCast(RTWEthernetController, object);
++    if (!self) return;
++    if (__atomic_load_n(&self->backendStopping, __ATOMIC_ACQUIRE)) {
++        self->setProperty("WTLBackendState", "stopped");
++        __sync_lock_release(&self->backendBusy);
++        return;
++    }
++    const bool on = self->backendRequestedPower;
++    self->setProperty("WTLBackendState", on ? "power-on-running" : "power-off-running");
++    auto *hal = OSDynamicCast(RTWCore89, self->fHalService);
++    const IOReturn result = hal ? hal->backendDiagnosticPower(on) : kIOReturnUnsupported;
++    self->setProperty("WTLBackendResult", uint64_t(uint32_t(result)), 32);
++    self->setProperty("WTLBackendState", result == kIOReturnSuccess
++                      ? (on ? "power-on-ok" : "power-off-ok") : "failed");
++    __sync_lock_release(&self->backendBusy);
++}
+--- a/rtw/hal_rtw89/RTWCore89.cpp
++++ b/rtw/hal_rtw89/RTWCore89.cpp
+@@ -223,6 +223,23 @@
+     }
+     pciDevice = nullptr;
+ }
++
++#ifdef WTL_BACKEND_ISOLATION
++IOReturn RTWCore89::backendDiagnosticPower(bool on)
++{
++    if (!(sc.sc_flags & RTW89_FLAG_ATTACHED) || !transport)
++        return kIOReturnNotReady;
++    bool ok = true;
++    if (on) ok = rtw89LinuxPowerUp(&linuxContext);
++    else rtw89LinuxPowerDown(&linuxContext);
++    getController()->setProperty("WTLBackendHardwareStarted", linuxContext.started);
++    getController()->setProperty("WTLBackendVifAdded", linuxContext.interfaceAdded);
++    getController()->setProperty("WTLBackendInterruptCount", transport->getInterruptCount(), 64);
++    const bool expected = on ? linuxContext.started && linuxContext.interfaceAdded
++                             : !linuxContext.started && !linuxContext.interfaceAdded;
++    return ok && expected ? kIOReturnSuccess : kIOReturnIOError;
++}
++#endif
+ 
+ IOReturn RTWCore89::enable(IONetworkInterface *interface)
+ {
+--- a/rtw/hal_rtw89/RTWCore89.hpp
++++ b/rtw/hal_rtw89/RTWCore89.hpp
+@@ -33,6 +33,9 @@
+     IOReturn enable(IONetworkInterface *interface) override;
+     IOReturn disable(IONetworkInterface *interface) override;
+     void free() override;
++#ifdef WTL_BACKEND_ISOLATION
++    IOReturn backendDiagnosticPower(bool on);
++#endif
+ 
+     struct ieee80211com *get80211Controller() override { return &sc.sc_ic; }
+ 
+--- a/rtw/hal_rtw89/Rtw89LinuxBridge.cpp
++++ b/rtw/hal_rtw89/Rtw89LinuxBridge.cpp
+@@ -1,6 +1,19 @@
+ /* SPDX-License-Identifier: GPL-2.0 OR BSD-3-Clause */
+ #include "Rtw89LinuxBridge.hpp"
+ #include "Rtw89PciTransport.hpp"
++#ifdef WTL_BACKEND_ISOLATION
++extern "C" __attribute__((noinline)) void wtl_backend_mutex_lock(IOLock *lock)
++{
++    if (IOLockTryLock(lock)) return;
++    Rtw89PciTransport::recordMutexWait(lock, __builtin_return_address(0));
++    IOLockLock(lock);
++}
++extern "C" void wtl_backend_power_stage(const char *stage)
++{
++    Rtw89PciTransport::recordPowerStage(stage);
++}
++#endif
++
+ #include "Rtw89RxLayout.hpp"
+ #include "Rtw89LinkPolicy.hpp"
+ #include <net80211/ieee80211_he_policy.hpp>
+@@ -503,13 +516,22 @@
+     if (!hw || !hw->ops || !vif)
+         return false;
+     if (!context->started) {
++#ifdef WTL_BACKEND_ISOLATION
++        Rtw89PciTransport::recordPowerStage("wiphy-lock-enter");
++#endif
+         RTW_LOG("AirportRTW-RTW89: hardware start callback begin\n");
+         WiphyGuard guard(hw);
++#ifdef WTL_BACKEND_ISOLATION
++        Rtw89PciTransport::recordPowerStage("hardware-start-enter");
++#endif
+         if (!hw->ops->start || hw->ops->start(hw) != 0) {
+             RTW_LOG("AirportRTW-RTW89: hardware start callback failed\n");
+             return false;
+         }
+         context->started = true;
++#ifdef WTL_BACKEND_ISOLATION
++        Rtw89PciTransport::recordPowerStage("hardware-start-returned");
++#endif
+         RTW_LOG("AirportRTW-RTW89: hardware start callback complete\n");
+     }
+     if (!context->interfaceAdded) {
+@@ -517,6 +539,9 @@
+         int result;
+         {
+             WiphyGuard guard(hw);
++#ifdef WTL_BACKEND_ISOLATION
++            Rtw89PciTransport::recordPowerStage("add-interface-enter");
++#endif
+             result = hw->ops->add_interface ? hw->ops->add_interface(hw, vif)
+                                             : -EOPNOTSUPP;
+         }
+--- a/rtw/hal_rtw89/Rtw89PciTransport.hpp
++++ b/rtw/hal_rtw89/Rtw89PciTransport.hpp
+@@ -34,6 +34,16 @@
+     bool initWithDevice(IOPCIDevice *device, IOWorkLoop *workLoop);
+     void free() override;
+ 
++#ifdef WTL_BACKEND_ISOLATION
++    static void recordPowerStage(const char *stage) {
++        if (active && active->pciDevice) active->pciDevice->setProperty("WTLBackendPowerStage", stage);
++    }
++    static void recordMutexWait(void *lock, void *caller) {
++        if (!active || !active->pciDevice) return;
++        active->pciDevice->setProperty("WTLBackendWaitingMutex", uint64_t(uintptr_t(lock)), 64);
++        active->pciDevice->setProperty("WTLBackendMutexCaller", uint64_t(uintptr_t(caller)), 64);
++    }
++#endif
+     // Store attach diagnostics on the PCI device, which survives failed attach.
+     void recordAttachStage(const char *stage) {
+         pciDevice->setProperty("RTWTransportStage", stage);
+--- a/rtw/hal_rtw89/compat/linux/mutex.h
++++ b/rtw/hal_rtw89/compat/linux/mutex.h
+@@ -4,6 +4,16 @@
+ 
+ #include "types.h"
+ #include "../iokit_shim.h"
++
++#ifdef WTL_BACKEND_ISOLATION
++#ifdef __cplusplus
++extern "C" {
++#endif
++void wtl_backend_mutex_lock(IOLock *lock);
++#ifdef __cplusplus
++}
++#endif
++#endif
+ 
+ /* struct mutex — IOLock sleepable mutex */
+ struct mutex {
+@@ -25,7 +35,11 @@
+ 
+ static inline void mutex_lock(struct mutex *lock)
+ {
++#ifdef WTL_BACKEND_ISOLATION
++    wtl_backend_mutex_lock(lock->m);
++#else
+     IOLockLock(lock->m);
++#endif
+ }
+ 
+ static inline int mutex_trylock(struct mutex *lock)
+--- a/rtw/hal_rtw89/driver/core.c
++++ b/rtw/hal_rtw89/driver/core.c
+@@ -6109,9 +6109,16 @@
+ 
+ int rtw89_core_start(struct rtw89_dev *rtwdev)
+ {
++#ifdef WTL_BACKEND_ISOLATION
++	extern void wtl_backend_power_stage(const char *stage);
++#endif
+ 	bool no_bbmcu = !rtwdev->chip->bbmcu_nr;
+ 	int ret;
+ 
++	
++#ifdef WTL_BACKEND_ISOLATION
++	wtl_backend_power_stage("mac-preinit");
++#endif
+ 	ret = rtw89_mac_preinit(rtwdev);
+ 	if (ret) {
+ 		rtw89_err(rtwdev, "mac preinit fail, ret: %d\n", ret);
+@@ -6125,27 +6132,51 @@
+ 
+ 	/* above do preinit before downloading firmware */
+ 
++	
++#ifdef WTL_BACKEND_ISOLATION
++	wtl_backend_power_stage("mac-init-firmware");
++#endif
+ 	ret = rtw89_mac_init(rtwdev);
+ 	if (ret) {
+ 		rtw89_err(rtwdev, "mac init fail, ret:%d\n", ret);
+ 		return ret;
+ 	}
+ 
++	
++#ifdef WTL_BACKEND_ISOLATION
++	wtl_backend_power_stage("coex-poweron");
++#endif
+ 	rtw89_btc_ntfy_poweron(rtwdev);
+ 
+ 	/* efuse process */
+ 
+ 	/* pre-config BB/RF, BB reset/RFC reset */
++	
++#ifdef WTL_BACKEND_ISOLATION
++	wtl_backend_power_stage("baseband-rf-reset");
++#endif
+ 	ret = rtw89_chip_reset_bb_rf(rtwdev);
+ 	if (ret)
+ 		return ret;
+ 
++	
++#ifdef WTL_BACKEND_ISOLATION
++	wtl_backend_power_stage("baseband-registers");
++#endif
+ 	rtw89_phy_init_bb_reg(rtwdev);
+ 	rtw89_chip_bb_postinit(rtwdev);
++	
++#ifdef WTL_BACKEND_ISOLATION
++	wtl_backend_power_stage("rf-registers");
++#endif
+ 	rtw89_phy_init_rf_reg(rtwdev, false);
+ 
+ 	/* The normal engine handles BT absent/off and late BT initialization
+ 	 * through the chip scoreboard and firmware events on every start. */
++	
++#ifdef WTL_BACKEND_ISOLATION
++	wtl_backend_power_stage("coex-init");
++#endif
+ 	rtw89_btc_ntfy_init(rtwdev, BTC_MODE_NORMAL);
+ 
+ 	rtw89_phy_dm_init(rtwdev);
+@@ -6155,6 +6186,10 @@
+ 	rtw89_mac_cfg_phy_rpt_bands(rtwdev, true);
+ 	rtw89_mac_update_rts_threshold(rtwdev);
+ 
++	
++#ifdef WTL_BACKEND_ISOLATION
++	wtl_backend_power_stage("hci-start");
++#endif
+ 	ret = rtw89_hci_start(rtwdev);
+ 	if (ret) {
+ 		rtw89_err(rtwdev, "failed to start hci\n");

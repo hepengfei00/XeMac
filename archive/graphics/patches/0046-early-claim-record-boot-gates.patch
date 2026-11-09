@@ -1,0 +1,45 @@
+--- a/early-claim/EarlyClaim.cpp
++++ b/early-claim/EarlyClaim.cpp
+@@ -20,14 +20,18 @@
+     IORegistryEntry *options = IORegistryEntry::fromPath("/options", plane);
+     if (!options) return false;
+     uint32_t once=0, phase=0, trial=0, fail=1, external=0, kms=0;
+-    bool valid = readGate(options,"xegfx-disp-once",&once) &&
+-        readGate(options,"xegfx-disp-phase",&phase) &&
+-        readGate(options,"xegfx-disp-trial",&trial) &&
+-        readGate(options,"xegfx-disp-fail",&fail) &&
+-        readGate(options,"xegfx-disp-external-dp",&external) &&
+-        readGate(options,"xegfx-disp-kms",&kms);
++    unsigned present = 0;
++    if (readGate(options,"xegfx-disp-once",&once)) present |= 1;
++    if (readGate(options,"xegfx-disp-phase",&phase)) present |= 2;
++    if (readGate(options,"xegfx-disp-trial",&trial)) present |= 4;
++    if (readGate(options,"xegfx-disp-fail",&fail)) present |= 8;
++    if (readGate(options,"xegfx-disp-external-dp",&external)) present |= 16;
++    if (readGate(options,"xegfx-disp-kms",&kms)) present |= 32;
+     options->release();
+-    return valid && once==1 && phase==2 && trial==1 && fail==0 && external==1 && kms==3;
++    const bool valid = present == 63 && once==1 && phase==2 && trial==1 && fail==0 && external==1 && kms==3;
++    IOLog("WTLArrowEarlyClaim: gate snapshot revision=%u present=0x%x once=%u phase=%u trial=%u fail=%u external=%u kms=%u armed=%u\n",
++          bootRevision, present, once, phase, trial, fail, external, kms, valid);
++    return valid;
+ }
+ static bool consume() {
+     const IORegistryPlane *plane = IORegistryEntry::getPlane("IODeviceTree");
+@@ -54,7 +58,7 @@
+         if (!armed() || !IOService::start(provider)) return false;
+         if (!consume()) return false;
+         setProperty("WTLArrowEarlyClaimActive",kOSBooleanTrue);
+-        setProperty("WTLArrowEarlyClaimVersion","1.1");
++        setProperty("WTLArrowEarlyClaimVersion","1.2");
+         IOService::publishResource("WTLArrowEarlyClaimActive",kOSBooleanTrue);
+         IOService::publishResource("WTLArrowTrialActive",kOSBooleanTrue);
+         IOService::publishResource("XeGfxBootArm",kOSBooleanTrue);
+@@ -65,6 +69,6 @@
+ OSDefineMetaClassAndStructors(WTLArrowEarlyClaim,IOService)
+ extern "C" kern_return_t _start(kmod_info_t *,void *);
+ extern "C" kern_return_t _stop(kmod_info_t *,void *);
+-extern "C" { KMOD_EXPLICIT_DECL(org.local.WTLArrowEarlyClaim, "1.1", _start, _stop) }
++extern "C" { KMOD_EXPLICIT_DECL(org.local.WTLArrowEarlyClaim, "1.2", _start, _stop) }
+ extern "C" kern_return_t _start(kmod_info_t *,void *) {return KERN_SUCCESS;}
+ extern "C" kern_return_t _stop(kmod_info_t *,void *) {return KERN_FAILURE;}

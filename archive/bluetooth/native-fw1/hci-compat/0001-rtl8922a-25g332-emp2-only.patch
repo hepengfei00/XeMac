@@ -1,0 +1,41 @@
+--- a/BrcmPatchRAM/BlueToolFixup.cpp
++++ b/BrcmPatchRAM/BlueToolFixup.cpp
+@@ -37,6 +37,7 @@
+         return false;
+     }
+     setProperty("VersionInfo", kextVersion);
++    setProperty("WTLRtl8922Trial", "25G332-emp2-only-d1");
+     registerService();
+     
+     return true;
+@@ -210,6 +211,13 @@
+ }
+ 
+ 
++// Local 0BDA:8922 trial, 25G332 x86_64 only. Derived from upstream issue #6.
++// Current hardware advertises Supported Commands[22] == 0 and local EMP2 reject 628.
++// Do not enable for another controller/build, or for unobserved LE scan errors.
++static bool shouldPatchRtl8922Emp2;
++static const uint8_t kRtl8922Emp2Original[] = { 0x48,0x8b,0x3d,0x59,0x6a,0x9b,0x00,0x89,0xde,0xe8 };
++static const uint8_t kRtl8922Emp2Patched[] = { 0x31,0xff,0xe8,0x62,0x19,0x00,0x00,0xeb,0x05,0xe8 };
++
+ #pragma mark - Patched functions
+ 
+ static void patched_cs_validate_page(vnode_t vp, memory_object_t pager, memory_object_offset_t page_offset, const void *data, int *validated_p, int *tainted_p, int *nx_p) {
+@@ -225,6 +233,8 @@
+         }
+         else if (strcmp(path + dirLength, "bluetoothd") == 0) {
+             searchAndPatch(data, PAGE_SIZE, path, kVendorCheckOriginal, kVendorCheckPatched);
++            if (shouldPatchRtl8922Emp2)
++                searchAndPatch(data, PAGE_SIZE, path, kRtl8922Emp2Original, kRtl8922Emp2Patched);
+             searchAndPatch(data, PAGE_SIZE, path, kBadChipsetCheckOriginal, kBadChipsetCheckPatched);
+             if (getKernelVersion() >= KernelVersion::Ventura && getKernelVersion() < KernelVersion::Sequoia)
+                 searchAndPatch(data, PAGE_SIZE, path, kBadChipsetCheckOriginal13_3, kBadChipsetCheckPatched13_3);
+@@ -249,6 +259,7 @@
+     if (getKernelVersion() < KernelVersion::Monterey)
+         return;
+     lilu.onPatcherLoadForce([](void *user, KernelPatcher &patcher) {
++        shouldPatchRtl8922Emp2 = getKernelVersion() == KernelVersion::Tahoe && getKernelMinorVersion() == 6 && checkKernelArgument("-btlfxrtl8922emp2");
+         if (getKernelVersion() >= KernelVersion::Sonoma) {
+             shouldPatchBoardId = checkKernelArgument("-btlfxboardid");
+         } else {

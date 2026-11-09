@@ -1,0 +1,8 @@
+{
+  "before": "pooled buffer-backed RGBA16Float refused",
+  "after": [
+    "pooled alias GPU clear and CPU visibility passed",
+    "dedicated alias GPU clear and CPU visibility passed"
+  ],
+  "scope": "Texture alias tests only"
+}
