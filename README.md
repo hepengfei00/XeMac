@@ -12,7 +12,7 @@ This repository provides patches, selected source snapshots, pinned dependency v
 
 ## Desktop preview
 
-![macOS Tahoe on the test system: a 4K HiDPI desktop and Liquid Glass Control Center](assets/screenshots/02-control-center.png)
+![macOS Tahoe on the test system: a 4K HiDPI desktop and Liquid Glass Control Center](assets/screenshots/02-control-center.jpg)
 
 **3840×2160 @ 60 Hz · 1920×1080 logical resolution · 2× HiDPI**
 

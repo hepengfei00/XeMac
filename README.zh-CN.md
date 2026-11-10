@@ -12,7 +12,7 @@ macOS Tahoe 26.7.2 · OpenCore 1.0.6 · Arrow Lake Xe-LPG
 
 ## 实机展示
 
-![macOS Tahoe 实机展示：4K HiDPI 桌面与 Liquid Glass 控制中心](assets/screenshots/02-control-center.png)
+![macOS Tahoe 实机展示：4K HiDPI 桌面与 Liquid Glass 控制中心](assets/screenshots/02-control-center.jpg)
 
 **3840×2160 @ 60 Hz · 1920×1080 逻辑分辨率 · 2× HiDPI**
 
