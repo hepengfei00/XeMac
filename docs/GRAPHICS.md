@@ -64,6 +64,8 @@ Metal 计算或绘制通过后，桌面仍可能在合成路径失败。`0042` �
 
 ## 验证与未完成事项
 
+2026-11-11 的 `a2bf4d4` 快照另含 [启动恢复与实时显示验收](../archive/boot/recovery-20261111/README.md)。它调整启动协调、失败回退和最终提交，不更换已接受的 GPU 二进制。旧 `archive/graphics/scripts/stable-profile` 保留历史实现；当前流程应对照新的恢复源码与 [实机验证摘要](../evidence/native-boot-20261111.json)。
+
 当前已通过原生 4K60、2× HiDPI、Metal 计算/绘制/纹理探针与 WindowServer 合成路径检查。功能摘要见 [显示与 Metal 验证](../archive/graphics/evidence/display-audit.json)。控制中心与 Dock 的 Liquid Glass 效果见 [实机展示](../README.zh-CN.md#实机展示)。
 
 登录阶段短暂黑块、首次图标加载延迟、部分 App 兼容性、视频硬件解码和长期稳定性仍需继续处理。其他输出接口、多显示器、HDR、睡眠唤醒尚未完成验证，详见 [已知问题](KNOWN-ISSUES.md)。

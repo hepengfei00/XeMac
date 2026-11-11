@@ -8,6 +8,8 @@ An experimental macOS port for the **Intel Core Ultra 7 265K / Z890M AORUS ELITE
 
 This repository provides patches, selected source snapshots, pinned dependency versions, and validation summaries for building and porting the stack. Compatibility is limited to the tested platform and the feature coverage documented below.
 
+Latest adaptation snapshot: **2026-11-11 / `a2bf4d4`**. [Bounded boot recovery](archive/boot/recovery-20261111/README.md) adds durable failure tracking and fresh same-boot HiDPI checks. One new native 4K60/2× HiDPI boot and next-boot commit passed; intermittent desktop-transition interruptions remain under investigation. The tested picker waits five seconds and defaults to Tahoe.
+
 [Desktop preview](#desktop-preview) · [Compatibility](#features-and-compatibility) · [Implementation](#implementation) · [Build](#building-and-porting) · [Documentation](#documentation)
 
 ## Desktop preview

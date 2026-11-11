@@ -1,0 +1,45 @@
+{
+  "actual_current_display": {
+    "pixel_width": 3840,
+    "refresh_hz": 60,
+    "hidpi": true,
+    "pixel_height": 2160,
+    "logical_width": 1920,
+    "logical_height": 1080,
+    "mode_id": 1
+  },
+  "fresh_independent_gui_audit": {
+    "generated_unix": 1794404353,
+    "nonce_matched": true,
+    "same_boot_matched": true,
+    "validator_passed": true,
+    "read_only_no_mode_selection": true
+  },
+  "GPU_stage": 7,
+  "accelerator_boot": 2,
+  "scanout_flips_two_seconds": [
+    812,
+    814
+  ],
+  "native_and_network_modules_match_expected_UUIDs": true,
+  "state": "healthy",
+  "retry_credits_after_success": 1,
+  "desktop_switch": {
+    "new_helper_start_and_heartbeat_and_exit_records_exist": true,
+    "start_UTC": "13:35:52",
+    "exit_UTC": "13:36:13",
+    "exit": 0,
+    "conditional_skip_executed": false
+  },
+  "strict_pipeline_health": "Fresh HiDPI audit + native/display/Metal/positive scanout verified twice before next-boot commit; independent fresh read-only GUI audit also passed.",
+  "next_boot_profile_sha256": "59f3723a60603dba90003d4a49bc22d8b1b77e6237c153fe862de9e6bef73f62",
+  "next_boot_aux_sha256": "910da863fd31d575d792fdd3f2bb2bf59c295010fe2cc2a584e6ceffaf52fa27",
+  "all_56_protected_artifacts_still_unchanged_after_native_boot": true,
+  "default_order_Tahoe_then_Windows_unchanged": true,
+  "timeout5_unchanged": true,
+  "reboots": "One user-operated validation reboot;0 agent-triggered reboots.",
+  "limits": "One actual successful boot validates recovery and persisted commit. It does not prove elimination of the earlier intermittent desktop-transition interruption. No forced failure introduced on the live system.",
+  "date": "2026-11-11",
+  "source_commit": "a2bf4d4270595f49925858508a84afd42a33749f",
+  "boot_identity": "Same current boot independently matched; machine boot identifier omitted from public summary."
+}

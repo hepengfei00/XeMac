@@ -8,6 +8,8 @@
     "gpu": "8086:7D67"
   },
   "observed_settings": {
+    "ACPI.Quirks.RebaseRegions": true,
+    "Misc.Boot.Timeout": 5,
     "Misc.Security.SecureBootModel": "Disabled",
     "PlatformInfo.Generic.SystemProductName": "MacPro7,1"
   },

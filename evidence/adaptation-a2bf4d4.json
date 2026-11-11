@@ -1,0 +1,134 @@
+{
+  "source_commit": "a2bf4d4270595f49925858508a84afd42a33749f",
+  "implementation_commit": "40ce0f6",
+  "snapshot_date": "2026-11-11",
+  "scope": "Bounded native boot recovery and fresh same-boot display audit; accepted driver binaries unchanged.",
+  "publication_changes": [
+    "Account name replaced with hackintosh.",
+    "ESP and Data volume identifiers replaced with example UUIDs ending 001 and 002.",
+    "Private installers, complete OpenCore profiles, credentials, raw logs, binary artifacts and backup archives omitted."
+  ],
+  "execution_scope": "Reference source snapshot, not a self-contained installer. Published scripts were not deployed or run against hardware during publication.",
+  "files": [
+    {
+      "path": "archive/boot/recovery-20261111/display-audit/LiveDisplayAudit.m",
+      "source_path": "boot/hidpi-repair-20261109/source/LiveDisplayAudit.m",
+      "source_sha256": "9082d1c7d48acbdd6e07bee98d542ab7b6b9d843098450aa9db83cec90af937e",
+      "published_sha256": "9082d1c7d48acbdd6e07bee98d542ab7b6b9d843098450aa9db83cec90af937e"
+    },
+    {
+      "path": "archive/boot/recovery-20261111/payload/check-payload.sh",
+      "source_path": "boot/boot-policy-repair-20261111/source/check-payload.sh",
+      "source_sha256": "d756c24d2e2c44c1c1a489daa82f18958c4bcbed39e673d6860c92161a44b5df",
+      "published_sha256": "34380d02fbac4c13d2aedd643b538145c9338f83a9e3b92efd84a21682fa6d79"
+    },
+    {
+      "path": "archive/boot/recovery-20261111/payload/commit-next-boot.sh",
+      "source_path": "boot/boot-policy-repair-20261111/source/commit-next-boot.sh",
+      "source_sha256": "e76d3a7eb2e3d6d9c5b4fc738d3024f63a908dced10d37492bb78c23df331241",
+      "published_sha256": "e76d3a7eb2e3d6d9c5b4fc738d3024f63a908dced10d37492bb78c23df331241"
+    },
+    {
+      "path": "archive/boot/recovery-20261111/payload/enabled-files.sha256",
+      "source_path": "boot/boot-policy-repair-20261111/source/enabled-files.sha256",
+      "source_sha256": "982353941fe2196834a090da1a96b8d1f31ff303c7fbe55353167a10d70e1936",
+      "published_sha256": "982353941fe2196834a090da1a96b8d1f31ff303c7fbe55353167a10d70e1936"
+    },
+    {
+      "path": "archive/boot/recovery-20261111/payload/esp.sh",
+      "source_path": "graphics/scripts/formal-switch4/payload/esp.sh",
+      "source_sha256": "905ed7b7127e481b4c71f3364a333b4b574b9a42401fc4781c6ad002a0dfe2f0",
+      "published_sha256": "8960bf142be052bbeb2cf544f010fb52d327b39a99bdb782cefeec626242de4b"
+    },
+    {
+      "path": "archive/boot/recovery-20261111/payload/health.sh",
+      "source_path": "boot/hidpi-repair-20261109/source/payload/health.sh",
+      "source_sha256": "9ed317e4f12ab07ef9cae74e76ade6c56423f3efaa28863d62ca9ffb6cf82df1",
+      "published_sha256": "0201c71fbf06e4d36e5fd893562ff38004d545eebb5b24b35cf7faafb8269003"
+    },
+    {
+      "path": "archive/boot/recovery-20261111/payload/manager.sh",
+      "source_path": "boot/boot-policy-repair-20261111/source/manager.sh",
+      "source_sha256": "3fe473933b5fc0acdf81ac02046432048248aa5a510549460cbdb4d72907c68b",
+      "published_sha256": "fc9a75077d954b13591876cdd0296ad26710fb9db4938b5a0150580b81172756"
+    },
+    {
+      "path": "archive/boot/recovery-20261111/payload/manual-retry.command",
+      "source_path": "boot/boot-policy-repair-20261111/source/manual-retry.command",
+      "source_sha256": "0dad6feca5331dfa9ae6148f5893846e7d680f69380816803a4929ad74daa1e9",
+      "published_sha256": "0dad6feca5331dfa9ae6148f5893846e7d680f69380816803a4929ad74daa1e9"
+    },
+    {
+      "path": "archive/boot/recovery-20261111/payload/notify.sh",
+      "source_path": "boot/boot-policy-repair-20261111/source/notify.sh",
+      "source_sha256": "b2113deb22dd677df14bf29ade4ec4d1d60558193d039ff2ee6297303bc45b24",
+      "published_sha256": "675bbe2b8e2c38a5fe37ace518ae40e8c40e7dfb98e0c1ec6749bf9fa45e46bf"
+    },
+    {
+      "path": "archive/boot/recovery-20261111/payload/onboot-stable.sh",
+      "source_path": "boot/boot-policy-repair-20261111/source/onboot-stable.sh",
+      "source_sha256": "a8a1a6df6d6c2c9dbe0f263a7a24437e7750c49928ac5bdb807bfdd6e470ee88",
+      "published_sha256": "a8a1a6df6d6c2c9dbe0f263a7a24437e7750c49928ac5bdb807bfdd6e470ee88"
+    },
+    {
+      "path": "archive/boot/recovery-20261111/payload/onboot-verified.sh",
+      "source_path": "boot/boot-policy-repair-20261111/source/onboot-verified.sh",
+      "source_sha256": "2dfd886e2b2f941918a622f06297860c70f074297ffe63d463b993122b84afcc",
+      "published_sha256": "b27d6362994db418d89e6d37349e2699b3590cfe5a0b937fe31cc2c8e9a12aba"
+    },
+    {
+      "path": "archive/boot/recovery-20261111/payload/org.local.wtl-boot-policy-status.plist",
+      "source_path": "boot/boot-policy-repair-20261111/source/org.local.wtl-boot-policy-status.plist",
+      "source_sha256": "093efb6b8642f326fb2478f0f876781a54606456bd9c13232b03a20de901a272",
+      "published_sha256": "591eea749598c81848ca464375c3dd4527f4ffbd57ffecf735abc56ce90b7449"
+    },
+    {
+      "path": "archive/boot/recovery-20261111/payload/probe-display.sh",
+      "source_path": "boot/hidpi-repair-20261109/source/payload/probe-display.sh",
+      "source_sha256": "a8c202b862b1b84385875dd9982aedb6684ad8fe8e87249b3ca6ff5342a7f973",
+      "published_sha256": "8b06b737b6b9514f8130f237b1df49d8dd1896936308d9df6555b039d2d8b1f8"
+    },
+    {
+      "path": "archive/boot/recovery-20261111/payload/protected-artifacts.sha256",
+      "source_path": "boot/boot-policy-repair-20261111/source/protected-artifacts.sha256",
+      "source_sha256": "230a823515b35f4aa144a4ae0bc2e7fd1b8ff47a336846febd52fb83d8b130d6",
+      "published_sha256": "230a823515b35f4aa144a4ae0bc2e7fd1b8ff47a336846febd52fb83d8b130d6"
+    },
+    {
+      "path": "archive/boot/recovery-20261111/payload/restore-boot.sh",
+      "source_path": "graphics/scripts/formal-switch4/payload/restore-boot.sh",
+      "source_sha256": "4058d722ed6cc0a41e2b458cce3755001084e1481be7119d2bae1fd8504b37d3",
+      "published_sha256": "4058d722ed6cc0a41e2b458cce3755001084e1481be7119d2bae1fd8504b37d3"
+    },
+    {
+      "path": "archive/boot/recovery-20261111/payload/restore-efi-only.sh",
+      "source_path": "graphics/scripts/formal-switch4/payload/restore-efi-only.sh",
+      "source_sha256": "2fab6bafd51f2a87b1f30d95089691d2407a67c5c1d369ecf219ed67568d1db5",
+      "published_sha256": "2fab6bafd51f2a87b1f30d95089691d2407a67c5c1d369ecf219ed67568d1db5"
+    },
+    {
+      "path": "archive/boot/recovery-20261111/payload/state-machine.sh",
+      "source_path": "boot/boot-policy-repair-20261111/source/state-machine.sh",
+      "source_sha256": "edd5414587a99e5570bf27f929d9e0d0b0c0989af706ed662f937db568380163",
+      "published_sha256": "edd5414587a99e5570bf27f929d9e0d0b0c0989af706ed662f937db568380163"
+    },
+    {
+      "path": "archive/boot/recovery-20261111/payload/switch-desktop.sh",
+      "source_path": "boot/boot-policy-repair-20261111/source/switch-desktop.sh",
+      "source_sha256": "ce5e11d9cfb1c73dbd9931d42e20cf7c55743ceb25ca8f3390a6d86062f88cd4",
+      "published_sha256": "ce5e11d9cfb1c73dbd9931d42e20cf7c55743ceb25ca8f3390a6d86062f88cd4"
+    },
+    {
+      "path": "archive/boot/recovery-20261111/payload/validate-display.sh",
+      "source_path": "boot/hidpi-repair-20261109/source/payload/validate-display.sh",
+      "source_sha256": "4b17afb97c88e0b62b49b141ddf7f93a355d4ee7056cfaf42995502893827337",
+      "published_sha256": "4b17afb97c88e0b62b49b141ddf7f93a355d4ee7056cfaf42995502893827337"
+    },
+    {
+      "path": "archive/boot/recovery-20261111/tests/state-tests.sh",
+      "source_path": "boot/boot-policy-repair-20261111/tests/state-tests.sh",
+      "source_sha256": "593d41dda7656d3f010caf891118048123669c14023088df687127fec6bdd5a0",
+      "published_sha256": "593d41dda7656d3f010caf891118048123669c14023088df687127fec6bdd5a0"
+    }
+  ]
+}
